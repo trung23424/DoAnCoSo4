@@ -1,0 +1,74 @@
+{
+  "roomId": "asm-8f2k1q",
+  "roomTitle": "Họp kickoff dự án AI Secretary",
+  "network": {
+    "protocol": "WebRTC P2P Mesh",
+    "latency": "18ms",
+    "bandwidth": "1.4 Mbps",
+    "encryption": "E2EE (DTLS/SRTP)",
+    "iceState": "Connected (Direct Peer-to-Peer)"
+  },
+  "participants": [
+    {
+      "id": "peer-self",
+      "name": "Bạn (Trần Thị Thảo Nhi)",
+      "role": "Host / Product Owner",
+      "avatar": "TN",
+      "isSelf": true,
+      "isSpeaking": false,
+      "isMicOn": true,
+      "isCamOn": true
+    },
+    {
+      "id": "peer-1",
+      "name": "Lê Quốc Cường",
+      "role": "WebRTC / Frontend Lead",
+      "avatar": "LC",
+      "isSelf": false,
+      "isSpeaking": true,
+      "isMicOn": true,
+      "isCamOn": true
+    },
+    {
+      "id": "peer-2",
+      "name": "Đỗ Quang Trung",
+      "role": "AI / Backend Lead",
+      "avatar": "QT",
+      "isSelf": false,
+      "isSpeaking": false,
+      "isMicOn": false,
+      "isCamOn": true
+    },
+    {
+      "id": "peer-3",
+      "name": "Nguyễn Văn Hùng",
+      "role": "Backend Engineer",
+      "avatar": "VH",
+      "isSelf": false,
+      "isSpeaking": false,
+      "isMicOn": false,
+      "isCamOn": false
+    }
+  ],
+  "sampleCaptions": [
+    { "speaker": "Lê Quốc Cường", "text": "Về phần WebRTC P2P Mesh, các peer đang truyền luồng video và voice trực tiếp không qua server." },
+    { "speaker": "Đỗ Quang Trung", "text": "Đúng rồi, mình đã cấu hình buffer thu âm sẵn sàng xuất file WAV 16kHz cho Whisper xử lý." },
+    { "speaker": "Trần Thị Thảo Nhi", "text": "Tuyệt vời, AI Secretary đang tự động lắng nghe và ghi nhận các luận điểm chính." },
+    { "speaker": "Lê Quốc Cường", "text": "Độ trễ hiện tại chỉ 18ms, kết nối ngang hàng hoạt động rất mượt mà và ổn định." }
+  ],
+  "initialChat": [
+    {
+      "id": "c-1",
+      "sender": "Lê Quốc Cường",
+      "time": "09:02",
+      "text": "Chào cả nhóm, camera và micro của mọi người hoạt động rất tốt nhé!"
+    },
+    {
+      "id": "c-2",
+      "sender": "Đỗ Quang Trung",
+      "time": "09:03",
+      "text": "Server backend FastAPI đã sẵn sàng pipeline nhận file ghi âm khi kết thúc họp."
+    }
+  ]
+}
+

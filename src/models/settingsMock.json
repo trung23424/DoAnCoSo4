@@ -1,0 +1,34 @@
+{
+  "ai": {
+    "whisperModel": "medium",
+    "aiProvider": "gemini",
+    "geminiApiKey": "AIzaSyD9x8K7L2mP1q_sample_gemini_key_vku_2026",
+    "openaiApiKey": "sk-proj-sample_openai_key_aismartmeet_2026",
+    "speechLanguage": "vi",
+    "autoRecording": true,
+    "systemPrompt": "Bạn là Thư ký AI thông minh (AI SmartMeet Secretary). Hãy nhận đoạn hội thoại (transcript) của cuộc họp và tạo ra một biên bản họp chuẩn mực gồm 3 phần:\n1. Tóm tắt tổng quan (Executive Summary): Trọng tâm và mục tiêu cuộc họp.\n2. Các quyết định chính (Key Decisions): Những điểm đã được thống nhất.\n3. Danh sách việc cần làm (Action Items): Bảng công việc chi tiết kèm người chịu trách nhiệm và hạn hoàn thành."
+  },
+  "webrtc": {
+    "networkTopology": "WebRTC Full Mesh P2P",
+    "stunServer": "stun:stun.l.google.com:19302",
+    "turnServer": "turn:turn.aismartmeet.vku.udn.vn:3478",
+    "encryption": "DTLS / SRTP (End-to-End Encrypted)",
+    "audioCodec": "OPUS (16kHz / Mono, tối ưu cho Whisper)",
+    "targetLatency": "20ms"
+  },
+  "devices": {
+    "microphone": "Microphone Array (Realtek(R) Audio)",
+    "camera": "HD Web Camera (1280x720 @ 30fps)",
+    "speaker": "Speakers / Headphones (Realtek(R) Audio)"
+  },
+  "profile": {
+    "fullName": "Trần Thị Thảo Nhi",
+    "email": "nhitt.24ai@vku.udn.vn",
+    "role": "Product Owner / Team Leader",
+    "studentId": "24AI009",
+    "className": "24AI - Kỹ sư Trí tuệ Nhân tạo",
+    "faculty": "Khoa Khoa học Máy tính",
+    "university": "Trường ĐH CNTT & Truyền thông Việt - Hàn (VKU)",
+    "workspacePlan": "Pro Workspace"
+  }
+}

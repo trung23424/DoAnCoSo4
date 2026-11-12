@@ -1,0 +1,49 @@
+{
+  "demoUsers": [
+    {
+      "email": "nhitt.24ai@vku.udn.vn",
+      "password": "password123",
+      "fullName": "Trần Thị Thảo Nhi",
+      "role": "Product Owner / Leader",
+      "studentId": "24AI009",
+      "avatar": "TN",
+      "plan": "Pro Workspace"
+    },
+    {
+      "email": "cuonglq.24ai@vku.udn.vn",
+      "password": "password123",
+      "fullName": "Lê Quốc Cường",
+      "role": "WebRTC / Frontend Lead",
+      "studentId": "24AI009",
+      "avatar": "LC",
+      "plan": "Pro Workspace"
+    },
+    {
+      "email": "trungdq.24it@vku.udn.vn",
+      "password": "password123",
+      "fullName": "Đỗ Quang Trung",
+      "role": "AI / Backend Lead",
+      "studentId": "24IT289",
+      "avatar": "QT",
+      "plan": "Pro Workspace"
+    }
+  ],
+  "features": [
+    {
+      "title": "OpenAI Whisper Speech-to-Text",
+      "desc": "Nhận dạng giọng nói tiếng Việt thời gian thực với độ chính xác cao ~98.4%"
+    },
+    {
+      "title": "Google Gemini AI Summary",
+      "desc": "Tự động trích xuất biên bản họp, quyết định then chốt và phân công Action Items"
+    },
+    {
+      "title": "WebRTC Peer-to-Peer Mesh",
+      "desc": "Kết nối video/audio trực tiếp giữa các trình duyệt, mã hóa E2EE, không lưu trên server"
+    },
+    {
+      "title": "Xuất tài liệu chuẩn PDF & Word",
+      "desc": "Biên bản họp sẵn sàng xuất ra định dạng văn bản phục vụ lưu trữ tổ chức"
+    }
+  ]
+}

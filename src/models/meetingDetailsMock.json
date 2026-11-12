@@ -1,0 +1,165 @@
+{
+  "asm-8f2k1q": {
+    "id": "asm-8f2k1q",
+    "title": "Họp kickoff dự án AI Secretary",
+    "date": "03/11/2026",
+    "time": "09:00 - 09:45",
+    "duration": "45 phút",
+    "host": "Trần Thị Thảo Nhi",
+    "status": "ready",
+    "attendees": [
+      { "name": "Trần Thị Thảo Nhi", "role": "Host / Product Owner", "avatar": "TN" },
+      { "name": "Lê Quốc Cường", "role": "WebRTC / Frontend Lead", "avatar": "LC" },
+      { "name": "Đỗ Quang Trung", "role": "AI / Backend Lead", "avatar": "QT" },
+      { "name": "Nguyễn Văn Hùng", "role": "Backend Engineer", "avatar": "VH" },
+      { "name": "Phạm Thu Hà", "role": "QA / Data Specialist", "avatar": "TH" },
+      { "name": "Lê Minh Tuấn", "role": "Member", "avatar": "MT" }
+    ],
+    "aiSummary": {
+      "overview": "Cuộc họp khởi động dự án AI Secretary nhằm thống nhất mục tiêu, phạm vi nghiên cứu, kiến trúc kỹ thuật và phân công nhiệm vụ cho Đồ án Cơ sở 4. Các thành viên đã thảo luận về việc tích hợp giao thức WebRTC cho phòng họp P2P, sử dụng OpenAI Whisper nhận dạng giọng nói tiếng Việt và Google Gemini API để tự động tóm tắt biên bản họp.",
+      "keyPoints": [
+        "Thống nhất kiến trúc Client-Server: Frontend ReactJS (Tailwind CSS), Backend Python FastAPI.",
+        "Tích hợp WebRTC Peer-to-Peer giúp kết nối voice/video bảo mật và giảm tải băng thông máy chủ trung tâm.",
+        "Lõi AI sử dụng Whisper xử lý Speech-to-Text cục bộ và Gemini API cho phần NLP trích xuất thông tin thông minh.",
+        "Kế hoạch hoàn thiện báo cáo và slide thuyết trình tiếng Anh trước ngày 01/12/2026."
+      ],
+      "decisions": [
+        "Chọn FastAPI làm framework Backend chính thay vì Flask để đảm bảo hiệu năng xử lý bất đồng bộ cao.",
+        "Sử dụng định dạng âm thanh chuẩn WAV/MP3 16kHz để tối ưu độ chính xác của Whisper đối với tiếng Việt.",
+        "Chốt quy trình họp: Ghi âm tự động → Xuất file khi kết thúc → Gửi backend phân tích AI → Trả JSON về giao diện."
+      ],
+      "actionItems": [
+        {
+          "id": "act-1",
+          "task": "Thiết lập khung dự án WebRTC và cấu hình phòng họp P2P",
+          "assignee": "Lê Quốc Cường",
+          "dueDate": "08/11/2026",
+          "priority": "High",
+          "completed": true
+        },
+        {
+          "id": "act-2",
+          "task": "Xây dựng Backend FastAPI và thử nghiệm pipeline nhận dạng âm thanh với Whisper",
+          "assignee": "Đỗ Quang Trung",
+          "dueDate": "12/11/2026",
+          "priority": "High",
+          "completed": false
+        },
+        {
+          "id": "act-3",
+          "task": "Thiết kế Prompt Engineering chuyên sâu để trích xuất Action Items từ bản Transcript",
+          "assignee": "Trần Thị Thảo Nhi",
+          "dueDate": "15/11/2026",
+          "priority": "Medium",
+          "completed": false
+        },
+        {
+          "id": "act-4",
+          "task": "Soạn thảo khung đề cương chi tiết và chuẩn bị dữ liệu kiểm thử hội thoại tiếng Việt",
+          "assignee": "Phạm Thu Hà",
+          "dueDate": "14/11/2026",
+          "priority": "Medium",
+          "completed": false
+        }
+      ]
+    },
+    "transcript": [
+      {
+        "id": "tr-1",
+        "time": "00:05",
+        "speaker": "Trần Thị Thảo Nhi",
+        "text": "Chào mọi người, cảm ơn các bạn đã tham gia buổi họp kickoff dự án AI Secretary sáng nay. Hôm nay chúng ta sẽ chốt lại kiến trúc kỹ thuật và lộ trình thực hiện cho Đồ án Cơ sở 4."
+      },
+      {
+        "id": "tr-2",
+        "time": "02:18",
+        "speaker": "Lê Quốc Cường",
+        "text": "Về phần WebRTC, mình đã khảo sát giải pháp Peer-to-Peer. Với quy mô nhóm học tập và làm việc, việc kết nối ngang hàng giúp cuộc họp mượt mà, bảo mật mà không phụ thuộc vào Zoom hay Google Meet."
+      },
+      {
+        "id": "tr-3",
+        "time": "07:45",
+        "speaker": "Đỗ Quang Trung",
+        "text": "Phần backend Python mình đề xuất dùng FastAPI. Nó có hiệu năng bất đồng bộ rất tốt khi tiếp nhận file âm thanh lớn để đưa vào pipeline Whisper nhận diện giọng nói tiếng Việt."
+      },
+      {
+        "id": "tr-4",
+        "time": "15:20",
+        "speaker": "Trần Thị Thảo Nhi",
+        "text": "Hoàn toàn đồng ý. Còn phần tóm tắt thông minh, chúng ta sẽ kết hợp Gemini API với Prompt Engineering để trích xuất 3 mục: Tóm tắt tổng quan, Các quyết định chính và Bảng việc cần làm (Action Items)."
+      },
+      {
+        "id": "tr-5",
+        "time": "28:10",
+        "speaker": "Nguyễn Văn Hùng",
+        "text": "Về định dạng xuất tài liệu, biên bản cuộc họp sau khi AI tổng hợp xong cần hỗ trợ xuất sang cả định dạng PDF và Word (.docx) để dễ dàng chia sẻ và lưu trữ trong tổ chức."
+      },
+      {
+        "id": "tr-6",
+        "time": "42:30",
+        "speaker": "Trần Thị Thảo Nhi",
+        "text": "Tuyệt vời, tất cả các đầu việc đã được phân công rõ ràng. Chúc cả nhóm hoàn thành dự án xuất sắc đúng hạn 01/12/2026!"
+      }
+    ]
+  },
+  "asm-3x9m4v": {
+    "id": "asm-3x9m4v",
+    "title": "Review tiến độ Sprint 14",
+    "date": "02/11/2026",
+    "time": "14:30 - 15:42",
+    "duration": "1 giờ 12 phút",
+    "host": "Nguyễn Văn Hùng",
+    "status": "ready",
+    "attendees": [
+      { "name": "Nguyễn Văn Hùng", "role": "Host / Scrum Master", "avatar": "VH" },
+      { "name": "Trần Thị Thảo Nhi", "role": "Product Owner", "avatar": "TN" },
+      { "name": "Lê Quốc Cường", "role": "Frontend", "avatar": "LC" },
+      { "name": "Đỗ Quang Trung", "role": "Backend", "avatar": "QT" }
+    ],
+    "aiSummary": {
+      "overview": "Đánh giá tiến độ hoàn thành các tính năng trong Sprint 14, xử lý các lỗi tồn đọng về hiệu năng giao tiếp mạng và tối ưu thời gian phản hồi của dịch vụ AI.",
+      "keyPoints": [
+        "Hoàn thành 85% backlog của Sprint 14.",
+        "Phát hiện độ trễ âm thanh khi có trên 6 người trong phòng P2P.",
+        "Lõi Whisper chạy cục bộ mất trung bình 35 giây cho 15 phút ghi âm."
+      ],
+      "decisions": [
+        "Thêm bộ nén âm thanh trước khi gửi lên API để giảm thời gian upload.",
+        "Thiết lập cơ chế cache kết quả tóm tắt trong SQLite."
+      ],
+      "actionItems": [
+        {
+          "id": "act-s1",
+          "task": "Tối ưu hóa băng thông luồng thoại WebRTC",
+          "assignee": "Lê Quốc Cường",
+          "dueDate": "06/11/2026",
+          "priority": "High",
+          "completed": false
+        },
+        {
+          "id": "act-s2",
+          "task": "Nâng cấp phiên bản Whisper medium lên server thử nghiệm",
+          "assignee": "Đỗ Quang Trung",
+          "dueDate": "07/11/2026",
+          "priority": "Medium",
+          "completed": true
+        }
+      ]
+    },
+    "transcript": [
+      {
+        "id": "tr-s1",
+        "time": "00:10",
+        "speaker": "Nguyễn Văn Hùng",
+        "text": "Chào cả nhà, chúng ta bắt đầu buổi Review Sprint 14 để kiểm tra những gì đã làm được và các vướng mắc còn lại."
+      },
+      {
+        "id": "tr-s2",
+        "time": "08:15",
+        "speaker": "Lê Quốc Cường",
+        "text": "Giao diện Dashboard và bộ lọc cuộc họp đã hoàn thiện 100%, responsive rất mượt trên cả mobile và desktop."
+      }
+    ]
+  }
+}
+

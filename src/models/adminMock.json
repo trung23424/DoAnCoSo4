@@ -1,0 +1,139 @@
+{
+  "metrics": {
+    "totalUsers": 48,
+    "activeMeetingsCount": 2,
+    "totalMeetingsRecorded": 156,
+    "totalWhisperHours": "42.5 giờ",
+    "geminiTokensUsed": "1,245,800",
+    "aiCostEst": "$0.86",
+    "storageUsed": "3.8 GB",
+    "storageLimit": "50 GB"
+  },
+  "users": [
+    {
+      "id": "u-1",
+      "name": "Trần Thị Thảo Nhi",
+      "email": "nhitt.24ai@vku.udn.vn",
+      "studentId": "24AI009",
+      "role": "Admin",
+      "faculty": "Khoa Khoa học Máy tính",
+      "status": "Active",
+      "meetingsCreated": 24,
+      "lastActive": "Vừa xong",
+      "avatar": "TN"
+    },
+    {
+      "id": "u-2",
+      "name": "Lê Quốc Cường",
+      "email": "cuonglq.24ai@vku.udn.vn",
+      "studentId": "24AI009",
+      "role": "Admin",
+      "faculty": "Khoa Khoa học Máy tính",
+      "status": "Active",
+      "meetingsCreated": 38,
+      "lastActive": "5 phút trước",
+      "avatar": "LC"
+    },
+    {
+      "id": "u-3",
+      "name": "Đỗ Quang Trung",
+      "email": "trungdq.24it@vku.udn.vn",
+      "studentId": "24IT289",
+      "role": "Admin",
+      "faculty": "Khoa Khoa học Máy tính",
+      "status": "Active",
+      "meetingsCreated": 42,
+      "lastActive": "15 phút trước",
+      "avatar": "QT"
+    },
+    {
+      "id": "u-4",
+      "name": "ThS. Mai Lam",
+      "email": "lamm@vku.udn.vn",
+      "studentId": "GV-VKU",
+      "role": "Admin",
+      "faculty": "Giảng viên hướng dẫn",
+      "status": "Active",
+      "meetingsCreated": 18,
+      "lastActive": "1 giờ trước",
+      "avatar": "ML"
+    },
+    {
+      "id": "u-5",
+      "name": "Nguyễn Văn Hùng",
+      "email": "hungnv.24it@vku.udn.vn",
+      "studentId": "24IT102",
+      "role": "Host",
+      "faculty": "Khoa Khoa học Máy tính",
+      "status": "Active",
+      "meetingsCreated": 15,
+      "lastActive": "Hôm nay, 14:30",
+      "avatar": "VH"
+    },
+    {
+      "id": "u-6",
+      "name": "Phạm Thu Hà",
+      "email": "hapt.24ai@vku.udn.vn",
+      "studentId": "24AI045",
+      "role": "Host",
+      "faculty": "Khoa Khoa học Máy tính",
+      "status": "Active",
+      "meetingsCreated": 8,
+      "lastActive": "Hôm qua",
+      "avatar": "TH"
+    },
+    {
+      "id": "u-7",
+      "name": "Lê Minh Tuấn",
+      "email": "tuanlm.24ai@vku.udn.vn",
+      "studentId": "24AI078",
+      "role": "Member",
+      "faculty": "Khoa Khoa học Máy tính",
+      "status": "Active",
+      "meetingsCreated": 4,
+      "lastActive": "30/10/2026",
+      "avatar": "MT"
+    },
+    {
+      "id": "u-8",
+      "name": "Võ Ngọc Lan",
+      "email": "lanvn.24ai@vku.udn.vn",
+      "studentId": "24AI032",
+      "role": "Member",
+      "faculty": "Khoa Khoa học Máy tính",
+      "status": "Inactive",
+      "meetingsCreated": 2,
+      "lastActive": "26/10/2026",
+      "avatar": "NL"
+    }
+  ],
+  "activeMeetings": [
+    {
+      "id": "asm-8f2k1q",
+      "title": "Họp kickoff dự án AI Secretary",
+      "host": "Trần Thị Thảo Nhi",
+      "peersCount": 4,
+      "network": "WebRTC P2P Mesh (18ms)",
+      "recording": true,
+      "duration": "04:32"
+    },
+    {
+      "id": "asm-live2",
+      "title": "Khảo sát Pipeline Whisper tiếng Việt",
+      "host": "Đỗ Quang Trung",
+      "peersCount": 2,
+      "network": "WebRTC P2P Mesh (15ms)",
+      "recording": true,
+      "duration": "12:45"
+    }
+  ],
+  "aiEngineStats": {
+    "sttModel": "OpenAI Whisper (medium)",
+    "accuracy": "98.4%",
+    "avgTranscribeTime": "28 giây / 15 phút âm thanh",
+    "llmModel": "Google Gemini 1.5 Pro",
+    "avgSummaryTime": "1.8 giây",
+    "totalTasksProcessed": 156,
+    "successRate": "99.2%"
+  }
+}

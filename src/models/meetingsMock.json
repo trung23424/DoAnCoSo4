@@ -1,0 +1,62 @@
+[
+  {
+    "id": "asm-8f2k1q",
+    "title": "Họp kickoff dự án AI Secretary",
+    "date": "03/11/2026",
+    "time": "09:00",
+    "duration": "45 phút",
+    "participants": 6,
+    "host": "Trần Thị Thảo Nhi",
+    "status": "ready"
+  },
+  {
+    "id": "asm-3x9m4v",
+    "title": "Review tiến độ Sprint 14",
+    "date": "02/11/2026",
+    "time": "14:30",
+    "duration": "1 giờ 12 phút",
+    "participants": 8,
+    "host": "Nguyễn Văn Hùng",
+    "status": "ready"
+  },
+  {
+    "id": "asm-7p2u8r",
+    "title": "Thảo luận kiến trúc nhận dạng giọng nói",
+    "date": "30/10/2026",
+    "time": "10:00",
+    "duration": "58 phút",
+    "participants": 4,
+    "host": "Lê Minh Tuấn",
+    "status": "ready"
+  },
+  {
+    "id": "asm-1c6n9d",
+    "title": "Gặp đối tác FPT Software",
+    "date": "28/10/2026",
+    "time": "15:00",
+    "duration": "35 phút",
+    "participants": 5,
+    "host": "Trần Thị Thảo Nhi",
+    "status": "ready"
+  },
+  {
+    "id": "asm-5j4t2s",
+    "title": "Phỏng vấn ứng viên Backend Engineer",
+    "date": "27/10/2026",
+    "time": "11:00",
+    "duration": "40 phút",
+    "participants": 3,
+    "host": "Phạm Thu Hà",
+    "status": "processing"
+  },
+  {
+    "id": "asm-9b8h3g",
+    "title": "Họp weekly Marketing Q4",
+    "date": "26/10/2026",
+    "time": "16:00",
+    "duration": "52 phút",
+    "participants": 7,
+    "host": "Võ Ngọc Lan",
+    "status": "ready"
+  }
+]
