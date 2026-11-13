@@ -16,10 +16,12 @@ import {
 export default function DashboardView({
   onViewSummary,
   onStartMeeting,
+  onJoinMeeting,
   onNavigate,
   currentUser,
   onLogout,
 }) {
+  const [joinCode, setJoinCode] = React.useState('');
   const {
     searchQuery,
     setSearchQuery,
@@ -145,17 +147,28 @@ export default function DashboardView({
                     <Mic className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
                     <input
                       type="text"
+                      value={joinCode}
+                      onChange={(e) => setJoinCode(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && joinCode.trim()) {
+                          onJoinMeeting ? onJoinMeeting(joinCode.trim()) : alert(`Tham gia phòng ${joinCode}`);
+                        }
+                      }}
                       placeholder="e.g. asm-8f2k1q"
                       className="w-full pl-11 pr-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-mono text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-600 transition-all shadow-sm"
                     />
                   </div>
 
                   <button
-                    onClick={() =>
-                      onStartMeeting
-                        ? onStartMeeting()
-                        : alert('Tham gia cuộc họp với mã đã nhập')
-                    }
+                    onClick={() => {
+                      if (!joinCode.trim()) {
+                        alert('Vui lòng nhập mã cuộc họp bạn muốn tham gia (ví dụ: asm-xxxxxx)');
+                        return;
+                      }
+                      if (onJoinMeeting) {
+                        onJoinMeeting(joinCode.trim());
+                      }
+                    }}
                     className="w-full py-3 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-semibold text-sm flex items-center justify-center gap-2 transition-colors shadow-md active:scale-98 cursor-pointer"
                   >
                     <span>Join</span>

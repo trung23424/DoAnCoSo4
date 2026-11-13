@@ -1,8 +1,19 @@
 import { useState, useEffect, useRef } from 'react';
 import meetingRoomData from '../models/meetingRoomMock.json';
+import {
+  getLocalMediaStream,
+  getDisplayMediaStream,
+  createCallSession,
+  joinCallSession,
+  checkCallExists,
+} from '../services/webrtcService';
 
-export default function useMeetingRoomController({ onMeetingFinished, roomConfig }) {
-  // Trạng thái thiết bị người dùng (khởi tạo theo cấu hình tạo phòng)
+export default function useMeetingRoomController({
+  onMeetingFinished,
+  roomConfig,
+  currentUser,
+}) {
+  // Trạng thái thiết bị người dùng
   const [isMicOn, setIsMicOn] = useState(
     roomConfig?.initialMic !== undefined ? roomConfig.initialMic : true
   );
@@ -17,12 +28,14 @@ export default function useMeetingRoomController({ onMeetingFinished, roomConfig
   const roomTitle = roomConfig?.title || meetingRoomData.roomTitle;
   const roomId = roomConfig?.roomId || meetingRoomData.roomId;
 
-  // Trạng thái phòng & kết nối P2P
-  const [participants, setParticipants] = useState(meetingRoomData.participants);
-  const [networkInfo] = useState(meetingRoomData.network);
+  // Trạng thái kết nối WebRTC P2P
+  const [connectionStatus, setConnectionStatus] = useState('idle'); // idle | requesting-media | connecting | connected | disconnected | failed
+  const [isPeerConnected, setIsPeerConnected] = useState(false);
+  const [localStream, setLocalStream] = useState(null);
+  const [remoteStream, setRemoteStream] = useState(null);
 
   // Bộ đếm thời gian họp (Timer)
-  const [seconds, setSeconds] = useState(145); // Bắt đầu ở 02:25 để tạo cảm giác tự nhiên
+  const [seconds, setSeconds] = useState(0);
 
   // Phụ đề thời gian thực (Live Captions do AI nhận dạng)
   const [showCaptions, setShowCaptions] = useState(true);
@@ -37,10 +50,16 @@ export default function useMeetingRoomController({ onMeetingFinished, roomConfig
   const [isProcessingAI, setIsProcessingAI] = useState(false);
   const [aiStep, setAiStep] = useState(1); // 1: Export WAV -> 2: Whisper STT -> 3: Gemini LLM -> Finish
 
-  // Tham chiếu Web Video Stream thực tế nếu trình duyệt cho phép
+  // Tham chiếu luồng và DOM Video
   const userVideoRef = useRef(null);
+  const remoteVideoRef = useRef(null);
+  const localStreamRef = useRef(null);
+  const remoteStreamRef = useRef(null);
+  const pcRef = useRef(null);
+  const cleanupRef = useRef(null);
+  const screenTrackRef = useRef(null);
 
-  // Đồng hồ đếm thời gian
+  // Đồng hồ đếm thời gian họp
   useEffect(() => {
     const timer = setInterval(() => {
       setSeconds((prev) => prev + 1);
@@ -57,44 +76,202 @@ export default function useMeetingRoomController({ onMeetingFinished, roomConfig
     return () => clearInterval(interval);
   }, [showCaptions]);
 
-  // Cố gắng mở webcam thật nếu người dùng cấp quyền
+  // Khởi tạo luồng WebRTC P2P thật khi vào phòng
   useEffect(() => {
-    let stream = null;
-    if (isCamOn && navigator.mediaDevices?.getUserMedia) {
-      navigator.mediaDevices
-        .getUserMedia({ video: true, audio: false })
-        .then((s) => {
-          stream = s;
-          if (userVideoRef.current) {
-            userVideoRef.current.srcObject = s;
-          }
-        })
-        .catch(() => {
-          // Người dùng từ chối webcam hoặc không có webcam, tự động fallback về avatar
+    let isMounted = true;
+
+    async function setupWebRTC() {
+      try {
+        setConnectionStatus('requesting-media');
+
+        // 1. Lấy luồng Media thật từ Camera và Micro
+        const stream = await getLocalMediaStream({
+          video: isCamOn,
+          audio: isMicOn,
         });
-    } else {
-      if (userVideoRef.current?.srcObject) {
-        userVideoRef.current.srcObject.getTracks().forEach((track) => track.stop());
-        userVideoRef.current.srcObject = null;
+
+        if (!isMounted) {
+          stream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+
+        // Gắn vào thẻ video của chính mình
+        if (userVideoRef.current) {
+          userVideoRef.current.srcObject = stream;
+        }
+
+        setConnectionStatus('connecting');
+
+        // 2. Định nghĩa các callback khi nhận remote stream hoặc thay đổi trạng thái
+        const callbacks = {
+          onRemoteStream: (rStream) => {
+            if (!isMounted) return;
+            console.log('[WebRTC P2P] Nhận được remote stream từ đối phương:', rStream);
+            remoteStreamRef.current = rStream;
+            setRemoteStream(rStream);
+            setIsPeerConnected(true);
+
+            if (remoteVideoRef.current) {
+              remoteVideoRef.current.srcObject = rStream;
+            }
+          },
+          onConnectionStateChange: (state) => {
+            if (!isMounted) return;
+            setConnectionStatus(state);
+            if (state === 'connected') {
+              setIsPeerConnected(true);
+            } else if (state === 'disconnected' || state === 'failed') {
+              setIsPeerConnected(false);
+            }
+          },
+        };
+
+        // 3. Phân biệt vai trò Host (Chủ phòng) hay Callee (Người tham gia)
+        let isHost = roomConfig?.isHost;
+
+        // Nếu chưa được set rõ ràng, tự động nhận diện dựa trên việc phòng đã có Offer hay chưa
+        if (isHost === undefined) {
+          const check = await checkCallExists(roomId);
+          if (check.exists && check.data?.offer && !check.data?.answer) {
+            isHost = false; // Đã có offer chờ -> Vào vai Callee trả lời
+          } else {
+            isHost = true; // Chưa có phòng hoặc là phòng mới -> Vào vai Host
+          }
+        }
+
+        let session;
+        if (isHost) {
+          console.log(`[WebRTC] Đang khởi tạo vai trò HOST cho phòng ${roomId}`);
+          session = await createCallSession(roomId, stream, callbacks);
+        } else {
+          console.log(`[WebRTC] Đang khởi tạo vai trò CALLEE (GUEST) cho phòng ${roomId}`);
+          session = await joinCallSession(roomId, stream, callbacks);
+        }
+
+        pcRef.current = session.pc;
+        cleanupRef.current = session.cleanup;
+      } catch (err) {
+        console.warn('[WebRTC] Lỗi kết nối phòng họp:', err);
+        if (isMounted) {
+          setConnectionStatus('failed');
+        }
       }
     }
 
+    setupWebRTC();
+
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      isMounted = false;
+      if (cleanupRef.current) {
+        cleanupRef.current();
+      }
+      if (localStreamRef.current) {
+        localStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (screenTrackRef.current) {
+        screenTrackRef.current.stop();
       }
     };
-  }, [isCamOn]);
+  }, [roomId]);
 
   // Format giây thành mm:ss
   const formattedTime = `${String(Math.floor(seconds / 60)).padStart(2, '0')}:${String(
     seconds % 60
   ).padStart(2, '0')}`;
 
-  // Toggle các thiết bị
-  const toggleMic = () => setIsMicOn((prev) => !prev);
-  const toggleCam = () => setIsCamOn((prev) => !prev);
-  const toggleScreenShare = () => setIsScreenSharing((prev) => !prev);
+  // Toggle Micro
+  const toggleMic = () => {
+    setIsMicOn((prev) => {
+      const next = !prev;
+      if (localStreamRef.current) {
+        localStreamRef.current.getAudioTracks().forEach((track) => {
+          track.enabled = next;
+        });
+      }
+      return next;
+    });
+  };
+
+  // Toggle Camera
+  const toggleCam = () => {
+    setIsCamOn((prev) => {
+      const next = !prev;
+      if (localStreamRef.current) {
+        localStreamRef.current.getVideoTracks().forEach((track) => {
+          track.enabled = next;
+        });
+      }
+      return next;
+    });
+  };
+
+  // Toggle Chia sẻ màn hình
+  const toggleScreenShare = async () => {
+    if (isScreenSharing) {
+      // Dừng chia sẻ màn hình
+      if (screenTrackRef.current) {
+        screenTrackRef.current.stop();
+        screenTrackRef.current = null;
+      }
+
+      // Khôi phục lại video track ban đầu của camera
+      const originalCamTrack = localStreamRef.current?.getVideoTracks()[0];
+      if (originalCamTrack && pcRef.current) {
+        const sender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
+        if (sender) {
+          sender.replaceTrack(originalCamTrack);
+        }
+      }
+
+      if (userVideoRef.current && localStreamRef.current) {
+        userVideoRef.current.srcObject = localStreamRef.current;
+      }
+      setIsScreenSharing(false);
+    } else {
+      try {
+        const screenStream = await getDisplayMediaStream();
+        const screenTrack = screenStream.getVideoTracks()[0];
+        screenTrackRef.current = screenTrack;
+
+        // Thay thế video track gửi đi sang màn hình
+        if (pcRef.current) {
+          const sender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
+          if (sender) {
+            sender.replaceTrack(screenTrack);
+          }
+        }
+
+        // Xem trước màn hình trên thẻ video của chính mình
+        if (userVideoRef.current) {
+          userVideoRef.current.srcObject = screenStream;
+        }
+
+        // Lắng nghe khi người dùng bấm nút "Dừng chia sẻ" mặc định của trình duyệt
+        screenTrack.onended = () => {
+          const originalCamTrack = localStreamRef.current?.getVideoTracks()[0];
+          if (originalCamTrack && pcRef.current) {
+            const sender = pcRef.current.getSenders().find((s) => s.track?.kind === 'video');
+            if (sender) {
+              sender.replaceTrack(originalCamTrack);
+            }
+          }
+          if (userVideoRef.current && localStreamRef.current) {
+            userVideoRef.current.srcObject = localStreamRef.current;
+          }
+          setIsScreenSharing(false);
+          screenTrackRef.current = null;
+        };
+
+        setIsScreenSharing(true);
+      } catch (err) {
+        console.warn('Người dùng huỷ chia sẻ màn hình:', err);
+      }
+    }
+  };
+
   const toggleRecording = () => setIsRecording((prev) => !prev);
   const toggleCaptions = () => setShowCaptions((prev) => !prev);
 
@@ -108,9 +285,11 @@ export default function useMeetingRoomController({ onMeetingFinished, roomConfig
     e?.preventDefault();
     if (!inputChat.trim()) return;
 
+    const senderName = currentUser?.name || currentUser?.fullName || 'Bạn';
+
     const newMsg = {
       id: `c-${Date.now()}`,
-      sender: 'Bạn (Trần Thị Thảo Nhi)',
+      sender: senderName,
       time: new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }),
       text: inputChat.trim(),
     };
@@ -121,6 +300,19 @@ export default function useMeetingRoomController({ onMeetingFinished, roomConfig
 
   // Quy trình Kết thúc cuộc họp & Xử lý AI
   const handleEndMeeting = () => {
+    // 1. Dọn dẹp WebRTC & giải phóng Camera / Mic ngay
+    if (cleanupRef.current) {
+      try {
+        cleanupRef.current();
+      } catch (e) {}
+    }
+    if (localStreamRef.current) {
+      localStreamRef.current.getTracks().forEach((track) => track.stop());
+    }
+    if (screenTrackRef.current) {
+      screenTrackRef.current.stop();
+    }
+
     setIsProcessingAI(true);
     setAiStep(1);
 
@@ -139,11 +331,25 @@ export default function useMeetingRoomController({ onMeetingFinished, roomConfig
     }, 1200);
   };
 
+  // Thông tin mạng P2P hiển thị
+  const p2pNetworkInfo = {
+    ...meetingRoomData.network,
+    iceState:
+      connectionStatus === 'connected'
+        ? 'Connected (Direct P2P Peer)'
+        : connectionStatus === 'connecting'
+        ? 'Establishing WebRTC ICE...'
+        : connectionStatus === 'requesting-media'
+        ? 'Requesting Media Device...'
+        : 'Standby / Waiting Peer',
+    latency: connectionStatus === 'connected' ? '14ms' : '--',
+  };
+
   return {
     roomTitle,
     roomId,
-    networkInfo,
-    participants,
+    networkInfo: p2pNetworkInfo,
+    participants: meetingRoomData.participants,
     isMicOn,
     isCamOn,
     isScreenSharing,
@@ -158,6 +364,11 @@ export default function useMeetingRoomController({ onMeetingFinished, roomConfig
     isProcessingAI,
     aiStep,
     userVideoRef,
+    remoteVideoRef,
+    localStream,
+    remoteStream,
+    connectionStatus,
+    isPeerConnected,
     toggleMic,
     toggleCam,
     toggleScreenShare,
@@ -168,4 +379,3 @@ export default function useMeetingRoomController({ onMeetingFinished, roomConfig
     handleEndMeeting,
   };
 }
-
