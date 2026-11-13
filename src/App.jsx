@@ -83,13 +83,29 @@ function App() {
 
   // Xác nhận tạo phòng họp từ Modal -> Lưu vào Firestore và vào phòng họp ngay
   const handleConfirmCreateMeeting = async (config) => {
+    const fullConfig = { ...config, isHost: true };
     try {
-      await createMeetingInFirestore(config, currentUser);
+      await createMeetingInFirestore(fullConfig, currentUser);
     } catch (err) {
       console.warn('Lỗi khi lưu cuộc họp vào Firestore:', err);
     }
-    setActiveRoomConfig(config);
+    setActiveRoomConfig(fullConfig);
     setIsCreateModalOpen(false);
+    setCurrentView('meeting-room');
+  };
+
+  // Tham gia phòng họp bằng mã ID đã có (Vai trò Guest/Callee)
+  const handleJoinMeeting = (roomId) => {
+    if (!roomId || !roomId.trim()) return;
+    const config = {
+      roomId: roomId.trim(),
+      title: `Phòng họp ${roomId.trim()}`,
+      isHost: false,
+      initialMic: true,
+      initialCam: true,
+      autoRecord: true,
+    };
+    setActiveRoomConfig(config);
     setCurrentView('meeting-room');
   };
 
@@ -117,6 +133,7 @@ function App() {
           onNavigate={handleNavigate}
           onViewSummary={handleOpenSummary}
           onStartMeeting={handleOpenCreateModal}
+          onJoinMeeting={handleJoinMeeting}
           currentUser={currentUser}
           onLogout={handleLogout}
         />
@@ -152,6 +169,7 @@ function App() {
         <MeetingRoomView
           onMeetingFinished={handleMeetingFinished}
           roomConfig={activeRoomConfig}
+          currentUser={currentUser}
         />
       )}
 

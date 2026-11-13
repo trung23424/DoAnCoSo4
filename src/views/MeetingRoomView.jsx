@@ -23,7 +23,7 @@ import {
   Volume2,
 } from 'lucide-react';
 
-export default function MeetingRoomView({ onMeetingFinished, roomConfig }) {
+export default function MeetingRoomView({ onMeetingFinished, roomConfig, currentUser }) {
   const {
     roomTitle,
     roomId,
@@ -43,6 +43,11 @@ export default function MeetingRoomView({ onMeetingFinished, roomConfig }) {
     isProcessingAI,
     aiStep,
     userVideoRef,
+    remoteVideoRef,
+    localStream,
+    remoteStream,
+    connectionStatus,
+    isPeerConnected,
     toggleMic,
     toggleCam,
     toggleScreenShare,
@@ -51,9 +56,22 @@ export default function MeetingRoomView({ onMeetingFinished, roomConfig }) {
     toggleSidePanel,
     handleSendMessage,
     handleEndMeeting,
-  } = useMeetingRoomController({ onMeetingFinished, roomConfig });
+  } = useMeetingRoomController({ onMeetingFinished, roomConfig, currentUser });
 
   const [copiedId, setCopiedId] = React.useState(false);
+
+  // Đồng bộ luồng video vào thẻ HTML Video
+  React.useEffect(() => {
+    if (userVideoRef.current && localStream) {
+      userVideoRef.current.srcObject = localStream;
+    }
+  }, [localStream, isCamOn]);
+
+  React.useEffect(() => {
+    if (remoteVideoRef.current && remoteStream) {
+      remoteVideoRef.current.srcObject = remoteStream;
+    }
+  }, [remoteStream, isPeerConnected]);
 
   const copyRoomId = () => {
     navigator.clipboard?.writeText(roomId);
@@ -138,86 +156,187 @@ export default function MeetingRoomView({ onMeetingFinished, roomConfig }) {
       <div className="flex-1 flex overflow-hidden relative">
         {/* VIDEO GRID AREA */}
         <main className="flex-1 p-4 md:p-6 flex flex-col justify-between overflow-hidden relative">
-          {/* Grid Layout 2x2 */}
+          {/* Grid Layout 2x2 WebRTC Video Call */}
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4 h-full max-h-[calc(100vh-160px)]">
-            {participants.map((p) => {
-              const isSelf = p.isSelf;
-              const hasVideo = isSelf ? isCamOn : p.isCamOn;
-              const hasMic = isSelf ? isMicOn : p.isMicOn;
-              const speaking = isSelf ? false : p.isSpeaking;
+            {/* ================= TILE 1: BẢN THÂN (LOCAL USER) ================= */}
+            <div className="relative rounded-3xl bg-slate-900 border border-slate-800 hover:border-slate-700 overflow-hidden flex items-center justify-center transition-all duration-300 shadow-xl">
+              {isCamOn ? (
+                <video
+                  ref={userVideoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${isScreenSharing ? '' : 'transform -scale-x-100'}`}
+                />
+              ) : (
+                <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center gap-3">
+                  <div className="w-20 h-20 rounded-full bg-blue-950 border border-blue-800 text-blue-300 font-extrabold text-2xl flex items-center justify-center shadow-lg">
+                    {(currentUser?.name || currentUser?.fullName || 'Bạn').slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="text-xs text-slate-500 font-medium">Camera của bạn đã tắt</span>
+                </div>
+              )}
 
-              return (
+              {/* Top-Right: Tags */}
+              <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                {isScreenSharing && (
+                  <span className="px-2 py-0.5 rounded-full bg-blue-600/80 backdrop-blur-md text-[10px] font-semibold text-white border border-blue-400/40">
+                    Màn hình
+                  </span>
+                )}
+                <span className="px-2 py-0.5 rounded-full bg-slate-950/70 backdrop-blur-md text-[10px] font-mono text-emerald-400 border border-emerald-500/20">
+                  Local
+                </span>
+                <div className="p-1 rounded-full bg-slate-950/70 backdrop-blur-md text-emerald-400">
+                  <Activity className="w-3.5 h-3.5" />
+                </div>
+              </div>
+
+              {/* Bottom-Left: Name & Mic status tag */}
+              <div className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-950/80 backdrop-blur-md border border-slate-800/80 text-xs font-semibold text-white shadow-lg">
+                <span>{currentUser?.name || currentUser?.fullName || 'Bạn'}</span>
                 <div
-                  key={p.id}
-                  className={`relative rounded-3xl bg-slate-900 border overflow-hidden flex items-center justify-center transition-all duration-300 shadow-xl ${
-                    speaking
-                      ? 'border-emerald-500 ring-2 ring-emerald-500/30'
-                      : 'border-slate-800 hover:border-slate-700'
+                  className={`w-5 h-5 rounded-full flex items-center justify-center ${
+                    isMicOn ? 'bg-slate-800 text-emerald-400' : 'bg-rose-500/90 text-white'
                   }`}
                 >
-                  {/* Camera Video Feed or Fallback Avatar */}
-                  {isSelf && isCamOn ? (
-                    <video
-                      ref={userVideoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="w-full h-full object-cover transform -scale-x-100"
-                    />
-                  ) : hasVideo ? (
-                    // Giả lập Video Feed của Peer khác
-                    <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex flex-col items-center justify-center relative">
-                      <div className="w-24 h-24 rounded-full bg-blue-900/80 border-2 border-blue-500/40 text-white font-extrabold text-2xl flex items-center justify-center shadow-lg shadow-blue-950">
-                        {p.avatar}
-                      </div>
-                      <div className="absolute inset-0 bg-radial-gradient pointer-events-none opacity-30" />
-                    </div>
-                  ) : (
-                    // Camera OFF state
-                    <div className="w-full h-full bg-slate-900 flex flex-col items-center justify-center gap-3">
-                      <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 text-slate-400 font-extrabold text-2xl flex items-center justify-center">
-                        {p.avatar}
-                      </div>
-                      <span className="text-xs text-slate-500 font-medium">Camera đã tắt</span>
-                    </div>
-                  )}
+                  {isMicOn ? <Mic className="w-3 h-3" /> : <MicOff className="w-3 h-3" />}
+                </div>
+              </div>
+            </div>
 
-                  {/* Top-Right: Connection Quality & P2P Tag */}
+            {/* ================= TILE 2: THÀNH VIÊN P2P (REMOTE PEER) ================= */}
+            <div className={`relative rounded-3xl bg-slate-900 border overflow-hidden flex items-center justify-center transition-all duration-300 shadow-xl ${
+              isPeerConnected ? 'border-emerald-500/60 ring-2 ring-emerald-500/20' : 'border-slate-800'
+            }`}>
+              {isPeerConnected ? (
+                <>
+                  <video
+                    ref={remoteVideoRef}
+                    autoPlay
+                    playsInline
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Top-Right: P2P Connected Badge */}
                   <div className="absolute top-3 right-3 flex items-center gap-1.5">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-950/70 backdrop-blur-md text-[10px] font-mono text-emerald-400 border border-emerald-500/20">
-                      P2P
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-950/80 backdrop-blur-md text-[10px] font-mono text-emerald-300 border border-emerald-500/40">
+                      P2P Connected · 14ms
                     </span>
                     <div className="p-1 rounded-full bg-slate-950/70 backdrop-blur-md text-emerald-400">
                       <Activity className="w-3.5 h-3.5" />
                     </div>
                   </div>
 
-                  {/* Speaking Wave Indicator */}
-                  {speaking && (
-                    <div className="absolute top-3 left-3 flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 text-[11px] font-medium backdrop-blur-md animate-pulse">
-                      <Volume2 className="w-3.5 h-3.5" />
-                      <span>Đang phát biểu</span>
-                    </div>
-                  )}
-
-                  {/* Bottom-Left: Name & Mic status tag */}
+                  {/* Bottom-Left: Name tag */}
                   <div className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-950/80 backdrop-blur-md border border-slate-800/80 text-xs font-semibold text-white shadow-lg">
-                    <span>{p.name}</span>
-                    <div
-                      className={`w-5 h-5 rounded-full flex items-center justify-center ${
-                        hasMic ? 'bg-slate-800 text-emerald-400' : 'bg-rose-500/90 text-white'
-                      }`}
-                    >
-                      {hasMic ? (
-                        <Mic className="w-3 h-3" />
-                      ) : (
-                        <MicOff className="w-3 h-3" />
-                      )}
+                    <span>Thành viên P2P (Đối tác)</span>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center bg-slate-800 text-emerald-400">
+                      <Mic className="w-3 h-3" />
                     </div>
                   </div>
+                </>
+              ) : (
+                /* Waiting State / Radar Animation */
+                <div className="w-full h-full bg-gradient-to-br from-slate-900 via-slate-800/60 to-slate-900 flex flex-col items-center justify-center p-6 text-center relative overflow-hidden">
+                  <div className="relative mb-3">
+                    <div className="w-16 h-16 rounded-full bg-blue-600/10 border border-blue-500/30 flex items-center justify-center animate-pulse">
+                      <Radio className="w-7 h-7 text-blue-400" />
+                    </div>
+                    <span className="absolute top-0 right-0 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-blue-500"></span>
+                    </span>
+                  </div>
+
+                  <h3 className="text-white font-bold text-sm tracking-tight">Đang chờ đối tác tham gia...</h3>
+                  <p className="text-slate-400 text-xs mt-1 max-w-xs leading-relaxed">
+                    Mở một tab khác hoặc gửi mã phòng cho thành viên nhóm để kết nối Video Call P2P qua Firestore
+                  </p>
+
+                  <div className="mt-3.5 flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-950/80 border border-slate-700/80 text-xs font-mono text-blue-300 shadow-inner">
+                    <span>Mã: {roomId}</span>
+                    <button
+                      onClick={copyRoomId}
+                      className="p-1 hover:text-white transition-colors"
+                      title="Sao chép mã phòng"
+                    >
+                      {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
                 </div>
-              );
-            })}
+              )}
+            </div>
+
+            {/* ================= TILE 3: TRỢ LÝ AI SMARTMEET (AI SECRETARY) ================= */}
+            <div className="relative rounded-3xl bg-gradient-to-br from-slate-900 via-indigo-950/30 to-slate-900 border border-indigo-500/30 overflow-hidden flex items-center justify-center shadow-xl">
+              <div className="flex flex-col items-center justify-center gap-3">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-3xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-600/25">
+                    <Bot className="w-10 h-10" />
+                  </div>
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500"></span>
+                  </span>
+                </div>
+                <div className="text-center">
+                  <h4 className="font-bold text-sm text-white">AI SmartMeet Secretary</h4>
+                  <p className="text-[11px] text-indigo-300 mt-0.5">Nhận dạng thời gian thực (Whisper & Gemini)</p>
+                </div>
+                {/* Simulated Audio Wave */}
+                <div className="flex items-center gap-1 mt-1">
+                  <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1 h-6 bg-blue-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1 h-4 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                  <span className="w-1 h-7 bg-amber-400 rounded-full animate-bounce" style={{ animationDelay: '450ms' }} />
+                  <span className="w-1 h-3 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '600ms' }} />
+                </div>
+              </div>
+
+              {/* Top-Right: AI Core Tag */}
+              <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                <span className="px-2 py-0.5 rounded-full bg-indigo-950/80 backdrop-blur-md text-[10px] font-mono text-indigo-300 border border-indigo-500/30 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-300" />
+                  <span>AI Core Active</span>
+                </span>
+              </div>
+
+              {/* Bottom-Left: Tag */}
+              <div className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-950/80 backdrop-blur-md border border-slate-800 text-xs font-semibold text-white shadow-lg">
+                <span>Trợ lý AI Cuộc họp</span>
+                <div className="w-5 h-5 rounded-full flex items-center justify-center bg-indigo-900 text-indigo-300">
+                  <Bot className="w-3 h-3" />
+                </div>
+              </div>
+            </div>
+
+            {/* ================= TILE 4: CỐ VẤN / BAN HƯỚNG DẪN VKU ================= */}
+            <div className="relative rounded-3xl bg-slate-900 border border-slate-800 hover:border-slate-700 overflow-hidden flex items-center justify-center transition-all duration-300 shadow-xl">
+              <div className="flex flex-col items-center justify-center gap-3">
+                <div className="w-20 h-20 rounded-full bg-amber-950/80 border border-amber-600/40 text-amber-300 font-extrabold text-2xl flex items-center justify-center shadow-lg">
+                  ML
+                </div>
+                <div className="text-center">
+                  <h4 className="font-bold text-sm text-white">ThS. Mai Lam</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Giảng viên hướng dẫn (Khoa KHMT - VKU)</p>
+                </div>
+              </div>
+
+              {/* Top-Right: VKU Mentor Tag */}
+              <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                <span className="px-2 py-0.5 rounded-full bg-amber-950/70 backdrop-blur-md text-[10px] font-mono text-amber-300 border border-amber-500/30">
+                  VKU Mentor
+                </span>
+              </div>
+
+              {/* Bottom-Left: Name tag */}
+              <div className="absolute bottom-3 left-3 flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-950/80 backdrop-blur-md border border-slate-800 text-xs font-semibold text-white shadow-lg">
+                <span>ThS. Mai Lam (Cố vấn)</span>
+                <div className="w-5 h-5 rounded-full flex items-center justify-center bg-slate-800 text-emerald-400">
+                  <Mic className="w-3 h-3" />
+                </div>
+              </div>
+            </div>
           </div>
 
           {/* Real-time Subtitles (Live Captions Overlay) */}
