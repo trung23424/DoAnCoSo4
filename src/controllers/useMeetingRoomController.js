@@ -375,7 +375,19 @@ export default function useMeetingRoomController({
 
   // Quy trình Kết thúc cuộc họp & Xử lý AI
   const handleEndMeeting = async () => {
-    // 1. Dọn dẹp WebRTC & giải phóng Camera / Mic ngay
+    // 1. Dừng thu âm trước khi tắt Microphone để đảm bảo file ghi âm đầy đủ
+    let audioResult = null;
+    try {
+      audioResult = await meetingRecorder.stop();
+      setRecordedAudioData(audioResult);
+    } catch (recErr) {
+      console.warn('[AudioRecorder] Lỗi dừng thu âm:', recErr);
+    }
+
+    // 2. Dừng nhận diện giọng nói & thu thập toàn bộ Transcript
+    const finalTranscripts = liveSpeechRecognizer.stop();
+
+    // 3. Sau khi ghi âm xong mới giải phóng Camera và Micro
     if (cleanupRef.current) {
       try {
         cleanupRef.current();
@@ -386,18 +398,6 @@ export default function useMeetingRoomController({
     }
     if (screenTrackRef.current) {
       screenTrackRef.current.stop();
-    }
-
-    // 2. Dừng nhận diện giọng nói & thu thập toàn bộ Transcript
-    const finalTranscripts = liveSpeechRecognizer.stop();
-
-    // 3. Dừng thu âm và nhận file âm thanh thật
-    let audioResult = null;
-    try {
-      audioResult = await meetingRecorder.stop();
-      setRecordedAudioData(audioResult);
-    } catch (recErr) {
-      console.warn('[AudioRecorder] Lỗi dừng thu âm:', recErr);
     }
 
     setIsProcessingAI(true);

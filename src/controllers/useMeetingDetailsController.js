@@ -23,6 +23,15 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
   const [audioProgress, setAudioProgress] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [copied, setCopied] = useState(false);
+  const [currentSeconds, setCurrentSeconds] = useState(0);
+
+  // Xác định tổng thời lượng âm thanh (giây)
+  const totalDurationSeconds = useMemo(() => {
+    if (audioResult?.durationSeconds && audioResult.durationSeconds > 0) {
+      return audioResult.durationSeconds;
+    }
+    return 180; // 03:00 phút mặc định
+  }, [audioResult]);
 
   const audioInstanceRef = useRef(null);
 
@@ -33,7 +42,8 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
       audioInstanceRef.current = audio;
 
       audio.ontimeupdate = () => {
-        if (audio.duration) {
+        if (audio.duration && !isNaN(audio.duration)) {
+          setCurrentSeconds(Math.floor(audio.currentTime));
           setAudioProgress((audio.currentTime / audio.duration) * 100);
         }
       };
@@ -41,6 +51,7 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
       audio.onended = () => {
         setIsPlaying(false);
         setAudioProgress(0);
+        setCurrentSeconds(0);
       };
 
       return () => {
@@ -49,6 +60,46 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
       };
     }
   }, [audioResult?.audioUrl]);
+
+  // Bộ đếm thời gian phát âm thanh mượt mà (chạy cả khi có file thật và khi mô phỏng)
+  useEffect(() => {
+    let timer = null;
+    if (isPlaying && (!audioInstanceRef.current || !audioResult?.audioUrl)) {
+      timer = setInterval(() => {
+        setCurrentSeconds((prev) => {
+          if (prev >= totalDurationSeconds) {
+            setIsPlaying(false);
+            setAudioProgress(0);
+            return 0;
+          }
+          const next = prev + 1;
+          setAudioProgress((next / totalDurationSeconds) * 100);
+          return next;
+        });
+      }, 1000 / playbackSpeed);
+    }
+    return () => clearInterval(timer);
+  }, [isPlaying, totalDurationSeconds, playbackSpeed, audioResult]);
+
+  // Format giây thành mm:ss
+  const formattedCurrentTime = `${String(Math.floor(currentSeconds / 60)).padStart(2, '0')}:${String(
+    currentSeconds % 60
+  ).padStart(2, '0')}`;
+
+  const formattedTotalDuration = `${String(Math.floor(totalDurationSeconds / 60)).padStart(2, '0')}:${String(
+    totalDurationSeconds % 60
+  ).padStart(2, '0')}`;
+
+  // Kéo tua âm thanh theo phần trăm
+  const handleSeek = (percent) => {
+    const clamped = Math.max(0, Math.min(100, percent));
+    const targetSec = Math.floor((clamped / 100) * totalDurationSeconds);
+    setCurrentSeconds(targetSec);
+    setAudioProgress(clamped);
+    if (audioInstanceRef.current && audioInstanceRef.current.duration) {
+      audioInstanceRef.current.currentTime = (clamped / 100) * audioInstanceRef.current.duration;
+    }
+  };
 
   // Tải dữ liệu cuộc họp từ Cloud Firestore thật
   useEffect(() => {
@@ -226,6 +277,9 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
     togglePlayAudio,
     audioProgress,
     setAudioProgress,
+    formattedCurrentTime,
+    formattedTotalDuration,
+    handleSeek,
     playbackSpeed,
     cyclePlaybackSpeed,
     copied,

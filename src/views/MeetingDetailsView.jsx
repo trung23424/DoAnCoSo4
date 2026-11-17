@@ -38,6 +38,9 @@ export default function MeetingDetailsView({
     filteredTranscript,
     isPlaying,
     audioProgress,
+    formattedCurrentTime,
+    formattedTotalDuration,
+    handleSeek,
     playbackSpeed,
     togglePlayAudio,
     cyclePlaybackSpeed,
@@ -196,20 +199,23 @@ export default function MeetingDetailsView({
 
               {/* Time display */}
               <div className="text-xs font-mono text-slate-300 flex-shrink-0">
-                <span className="font-bold text-white">08:15</span> / {meeting.duration}
+                <span className="font-bold text-white">{formattedCurrentTime || '00:00'}</span> / {formattedTotalDuration || meeting.duration}
               </div>
 
-              {/* Waveform simulation */}
-              <div className="flex-1 flex items-center gap-1 w-full overflow-hidden h-9 px-2">
+              {/* Waveform simulation (Có thể click để tua nhanh) */}
+              <div className="flex-1 flex items-center gap-1 w-full overflow-hidden h-9 px-2 cursor-pointer">
                 {waveformHeights.map((h, i) => {
                   const isPassed = i < Math.floor((waveformHeights.length * audioProgress) / 100);
+                  const barPercent = Math.round(((i + 1) / waveformHeights.length) * 100);
                   return (
                     <div
                       key={i}
+                      onClick={() => handleSeek(barPercent)}
                       style={{ height: `${h}%` }}
                       className={`flex-1 min-w-[3px] rounded-full transition-all duration-200 ${
-                        isPassed ? 'bg-blue-400' : 'bg-slate-700 hover:bg-slate-600'
+                        isPassed ? 'bg-blue-400' : 'bg-slate-700 hover:bg-slate-500'
                       }`}
+                      title={`Tua đến ${barPercent}%`}
                     />
                   );
                 })}
