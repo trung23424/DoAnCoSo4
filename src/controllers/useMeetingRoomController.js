@@ -8,6 +8,11 @@ import {
   checkCallExists,
 } from '../services/webrtcService';
 import meetingRecorder from '../services/audioRecorderService';
+import {
+  liveSpeechRecognizer,
+  generateMeetingSummaryWithGemini,
+  saveMeetingSummaryToFirestore,
+} from '../services/aiService';
 
 export default function useMeetingRoomController({
   onMeetingFinished,
@@ -42,6 +47,8 @@ export default function useMeetingRoomController({
   // Phụ đề thời gian thực (Live Captions do AI nhận dạng)
   const [showCaptions, setShowCaptions] = useState(true);
   const [captionIndex, setCaptionIndex] = useState(0);
+  const [liveCaption, setLiveCaption] = useState(null);
+  const [liveTranscript, setLiveTranscript] = useState([]);
 
   // Panel cạnh bên (Participants / Chat / P2P Info)
   const [activeSidePanel, setActiveSidePanel] = useState(null); // 'participants' | 'chat' | 'p2p' | null
@@ -77,6 +84,28 @@ export default function useMeetingRoomController({
     }, 6000);
     return () => clearInterval(interval);
   }, [showCaptions]);
+
+  // Khởi động nhận diện giọng nói tiếng Việt thời gian thực (Live STT qua Web Speech API)
+  useEffect(() => {
+    if (showCaptions && isMicOn) {
+      const speakerName = currentUser?.name || currentUser?.fullName || 'Bạn';
+      liveSpeechRecognizer.start({
+        speaker: speakerName,
+        onCaption: (caption) => {
+          setLiveCaption(caption);
+        },
+        onTranscriptUpdate: (list) => {
+          setLiveTranscript(list);
+        },
+      });
+    } else {
+      liveSpeechRecognizer.stop();
+    }
+
+    return () => {
+      liveSpeechRecognizer.stop();
+    };
+  }, [showCaptions, isMicOn, currentUser]);
 
   // Khởi tạo luồng WebRTC P2P thật khi vào phòng
   useEffect(() => {
@@ -338,6 +367,9 @@ export default function useMeetingRoomController({
     };
 
     setChatMessages((prev) => [...prev, newMsg]);
+
+    // Lưu vào bản ghi hội thoại của AI
+    liveSpeechRecognizer.addManualTranscript(senderName, inputChat.trim());
     setInputChat('');
   };
 
@@ -356,7 +388,10 @@ export default function useMeetingRoomController({
       screenTrackRef.current.stop();
     }
 
-    // 2. Dừng thu âm và nhận file âm thanh thật
+    // 2. Dừng nhận diện giọng nói & thu thập toàn bộ Transcript
+    const finalTranscripts = liveSpeechRecognizer.stop();
+
+    // 3. Dừng thu âm và nhận file âm thanh thật
     let audioResult = null;
     try {
       audioResult = await meetingRecorder.stop();
@@ -366,19 +401,41 @@ export default function useMeetingRoomController({
     }
 
     setIsProcessingAI(true);
-    setAiStep(1);
+    setAiStep(1); // Bước 1: Thu âm MediaRecorder -> Xuất WAV/WebM
 
-    // Bước 1: Thu âm MediaRecorder -> Xuất WAV/WebM (1.2s)
     setTimeout(() => {
-      setAiStep(2); // Bước 2: OpenAI Whisper tiếng Việt (1.5s)
-      setTimeout(() => {
-        setAiStep(3); // Bước 3: Google Gemini LLM Tóm tắt & Action Items (1.5s)
-        setTimeout(() => {
+      setAiStep(2); // Bước 2: Whisper STT xử lý lời thoại tiếng Việt
+
+      setTimeout(async () => {
+        setAiStep(3); // Bước 3: Google Gemini 1.5 Tóm tắt & Action Items
+
+        try {
+          const speakerName = currentUser?.name || currentUser?.fullName || 'Bạn';
+          const transcriptsToProcess =
+            finalTranscripts.length > 0 ? finalTranscripts : liveTranscript;
+
+          // Gọi AI Gemini tóm tắt biên bản
+          const aiSummary = await generateMeetingSummaryWithGemini(transcriptsToProcess, {
+            meetingTitle: roomTitle,
+            hostName: speakerName,
+          });
+
+          // Lưu biên bản thông minh vào Cloud Firestore
+          await saveMeetingSummaryToFirestore(roomId, aiSummary, transcriptsToProcess);
+
+          setTimeout(() => {
+            setIsProcessingAI(false);
+            if (onMeetingFinished) {
+              onMeetingFinished(roomId, audioResult);
+            }
+          }, 800);
+        } catch (aiErr) {
+          console.warn('[AI] Lỗi xử lý biên bản AI:', aiErr);
           setIsProcessingAI(false);
           if (onMeetingFinished) {
             onMeetingFinished(roomId, audioResult);
           }
-        }, 1500);
+        }
       }, 1500);
     }, 1200);
   };
@@ -409,6 +466,8 @@ export default function useMeetingRoomController({
     formattedTime,
     showCaptions,
     currentCaption: meetingRoomData.sampleCaptions[captionIndex],
+    liveCaption,
+    liveTranscript,
     activeSidePanel,
     chatMessages,
     inputChat,

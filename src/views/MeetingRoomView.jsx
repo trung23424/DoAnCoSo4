@@ -36,6 +36,8 @@ export default function MeetingRoomView({ onMeetingFinished, roomConfig, current
     formattedTime,
     showCaptions,
     currentCaption,
+    liveCaption,
+    liveTranscript,
     activeSidePanel,
     chatMessages,
     inputChat,
@@ -339,15 +341,15 @@ export default function MeetingRoomView({ onMeetingFinished, roomConfig, current
             </div>
           </div>
 
-          {/* Real-time Subtitles (Live Captions Overlay) */}
-          {showCaptions && currentCaption && (
+          {/* Real-time Subtitles (Live Captions Overlay do AI nhận dạng) */}
+          {showCaptions && (liveCaption || currentCaption) && (
             <div className="w-full flex justify-center mt-3 z-10">
               <div className="max-w-2xl px-5 py-2.5 rounded-2xl bg-slate-900/90 backdrop-blur-xl border border-slate-700/80 text-center shadow-2xl animate-fade-in">
                 <p className="text-xs text-slate-200">
                   <span className="font-bold text-amber-300 mr-1.5">
-                    ✨ [{currentCaption.speaker}]:
+                    ✨ [{(liveCaption || currentCaption).speaker}]:
                   </span>
-                  <span>{currentCaption.text}</span>
+                  <span>{(liveCaption || currentCaption).text}</span>
                 </p>
               </div>
             </div>
