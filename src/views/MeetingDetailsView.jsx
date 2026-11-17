@@ -41,6 +41,7 @@ export default function MeetingDetailsView({
     formattedCurrentTime,
     formattedTotalDuration,
     handleSeek,
+    activeAudio,
     playbackSpeed,
     togglePlayAudio,
     cyclePlaybackSpeed,
@@ -229,9 +230,9 @@ export default function MeetingDetailsView({
                 >
                   {playbackSpeed}x
                 </button>
-                {audioResult?.audioUrl && (
+                {(activeAudio?.audioUrl || audioResult?.audioUrl) && (
                   <a
-                    href={audioResult.audioUrl}
+                    href={activeAudio?.audioUrl || audioResult?.audioUrl}
                     download={`record-${meeting?.id || 'meeting'}.webm`}
                     className="p-1.5 text-blue-400 hover:text-blue-300 transition-colors"
                     title="Tải tệp ghi âm cuộc họp"
@@ -239,8 +240,14 @@ export default function MeetingDetailsView({
                     <Download className="w-4 h-4" />
                   </a>
                 )}
-                <div className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1">
+                <div
+                  title={activeAudio?.audioUrl ? 'Bản ghi âm Micro phòng họp' : 'Giọng đọc AI tiếng Việt (TTS)'}
+                  className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1 flex items-center gap-1"
+                >
                   <Volume2 className="w-4 h-4" />
+                  {!activeAudio?.audioUrl && (
+                    <span className="text-[10px] text-blue-300 font-sans hidden sm:inline">AI Voice</span>
+                  )}
                 </div>
               </div>
             </div>

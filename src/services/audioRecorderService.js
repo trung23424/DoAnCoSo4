@@ -49,38 +49,43 @@ export class MeetingAudioRecorder {
    */
   start({ localStream, remoteStream = null, onDataChunk = null }) {
     try {
-      // 1. Khởi tạo AudioContext
-      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtxClass) {
-        throw new Error('Trình duyệt không hỗ trợ Web Audio API.');
-      }
+      this.audioChunks = [];
+      this.startTime = Date.now();
 
-      this.audioContext = new AudioCtxClass();
-      if (this.audioContext.state === 'suspended') {
-        this.audioContext.resume();
-      }
+      // Nếu chưa có đối tác, dùng trực tiếp localStream để đảm bảo MediaRecorder bắt 100% âm thanh micro
+      let streamToRecord = localStream;
 
-      // 2. Tạo Node Đích (Destination) để gom tất cả các luồng âm thanh
-      this.destination = this.audioContext.createMediaStreamDestination();
-
-      // 3. Kết nối luồng Micro của chính mình (nếu có Audio Track)
-      if (localStream && localStream.getAudioTracks().length > 0) {
-        this.localSource = this.audioContext.createMediaStreamSource(localStream);
-        this.localSource.connect(this.destination);
-      }
-
-      // 4. Kết nối luồng Âm thanh của đối tác P2P (nếu đã vào phòng)
       if (remoteStream && remoteStream.getAudioTracks().length > 0) {
-        this.remoteSource = this.audioContext.createMediaStreamSource(remoteStream);
-        this.remoteSource.connect(this.destination);
+        try {
+          const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtxClass) {
+            this.audioContext = new AudioCtxClass();
+            if (this.audioContext.state === 'suspended') {
+              this.audioContext.resume();
+            }
+            this.destination = this.audioContext.createMediaStreamDestination();
+            if (localStream && localStream.getAudioTracks().length > 0) {
+              this.localSource = this.audioContext.createMediaStreamSource(localStream);
+              this.localSource.connect(this.destination);
+            }
+            this.remoteSource = this.audioContext.createMediaStreamSource(remoteStream);
+            this.remoteSource.connect(this.destination);
+            streamToRecord = this.destination.stream;
+          }
+        } catch (e) {
+          console.warn('[AudioRecorder] Lỗi trộn đa kênh, fallback sang localStream:', e);
+          streamToRecord = localStream;
+        }
       }
 
-      // 5. Khởi tạo MediaRecorder từ luồng hỗn hợp (Mixed Stream)
+      if (!streamToRecord || streamToRecord.getAudioTracks().length === 0) {
+        console.warn('[AudioRecorder] Không tìm thấy audio track hợp lệ, vẫn thử stream mặc định');
+      }
+
       const mimeType = MeetingAudioRecorder.getSupportedMimeType();
       const recorderOptions = mimeType ? { mimeType } : {};
 
-      this.mediaRecorder = new MediaRecorder(this.destination.stream, recorderOptions);
-      this.audioChunks = [];
+      this.mediaRecorder = new MediaRecorder(streamToRecord, recorderOptions);
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -91,9 +96,8 @@ export class MeetingAudioRecorder {
         }
       };
 
-      // Bắt đầu thu âm và cắt chunk mỗi 1000ms (1 giây)
-      this.mediaRecorder.start(1000);
-      this.startTime = Date.now();
+      // Bắt đầu thu âm và cắt chunk mỗi 500ms
+      this.mediaRecorder.start(500);
       this.isRecording = true;
       this.isPaused = false;
 
@@ -187,6 +191,9 @@ export class MeetingAudioRecorder {
       };
 
       try {
+        if (this.mediaRecorder.state === 'recording') {
+          this.mediaRecorder.requestData();
+        }
         this.mediaRecorder.stop();
       } catch (e) {
         console.warn('[AudioRecorder] Lỗi khi gọi stop():', e);

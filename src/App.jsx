@@ -115,6 +115,9 @@ function App() {
   const handleMeetingFinished = (meetingId, audioResult) => {
     if (audioResult) {
       setLatestAudioResult(audioResult);
+      try {
+        window.__latestMeetingAudio = audioResult;
+      } catch (e) {}
     }
     setSelectedMeetingId(meetingId || 'asm-8f2k1q');
     setCurrentView('meeting-details');

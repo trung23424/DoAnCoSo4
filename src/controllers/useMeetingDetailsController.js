@@ -3,6 +3,11 @@ import meetingDetailsMock from '../models/meetingDetailsMock.json';
 import { getMeetingDetailsFromFirestore } from '../services/meetingsService';
 
 export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', audioResult = null) {
+  // Lấy dữ liệu file âm thanh thật (kể cả khi vừa ghi xong hoặc lưu tạm trong phiên)
+  const activeAudio =
+    audioResult ||
+    (typeof window !== 'undefined' ? window.__latestMeetingAudio : null);
+
   const [meetingData, setMeetingData] = useState(
     meetingDetailsMock[meetingId] || meetingDetailsMock['asm-8f2k1q']
   );
@@ -27,18 +32,19 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
 
   // Xác định tổng thời lượng âm thanh (giây)
   const totalDurationSeconds = useMemo(() => {
-    if (audioResult?.durationSeconds && audioResult.durationSeconds > 0) {
-      return audioResult.durationSeconds;
+    if (activeAudio?.durationSeconds && activeAudio.durationSeconds > 0) {
+      return activeAudio.durationSeconds;
     }
     return 180; // 03:00 phút mặc định
-  }, [audioResult]);
+  }, [activeAudio]);
 
   const audioInstanceRef = useRef(null);
+  const synthRef = useRef(null);
 
   // Gắn luồng âm thanh thực tế nếu có Audio Blob được ghi từ phòng họp
   useEffect(() => {
-    if (audioResult?.audioUrl) {
-      const audio = new Audio(audioResult.audioUrl);
+    if (activeAudio?.audioUrl) {
+      const audio = new Audio(activeAudio.audioUrl);
       audioInstanceRef.current = audio;
 
       audio.ontimeupdate = () => {
@@ -59,7 +65,7 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
         audioInstanceRef.current = null;
       };
     }
-  }, [audioResult?.audioUrl]);
+  }, [activeAudio?.audioUrl]);
 
   // Bộ đếm thời gian phát âm thanh mượt mà (chạy cả khi có file thật và khi mô phỏng)
   useEffect(() => {
@@ -199,9 +205,48 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
     );
   };
 
-  // Toggle phát/dừng audio (hỗ trợ phát âm thanh thật từ phiên ghi âm)
+  // Đọc nội dung tóm tắt bằng giọng đọc AI (Text-to-Speech)
+  const speakSummary = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) return;
+
+    window.speechSynthesis.cancel();
+
+    const title = meetingData?.title || 'Cuộc họp nhóm';
+    const summaryText =
+      meetingData?.aiSummary?.executive ||
+      meetingData?.aiSummary?.overview ||
+      'Biên bản tóm tắt cuộc họp do AI SmartMeet tự động tạo.';
+
+    const textToRead = `Biên bản cuộc họp: ${title}. Tóm tắt tổng quan: ${summaryText}`;
+
+    const utterance = new SpeechSynthesisUtterance(textToRead);
+    utterance.lang = 'vi-VN';
+    utterance.rate = playbackSpeed;
+
+    const voices = window.speechSynthesis.getVoices();
+    const viVoice = voices.find((v) => v.lang.includes('vi') || v.lang.includes('VN'));
+    if (viVoice) {
+      utterance.voice = viVoice;
+    }
+
+    utterance.onend = () => {
+      setIsPlaying(false);
+      setAudioProgress(0);
+      setCurrentSeconds(0);
+    };
+
+    utterance.onerror = () => {
+      setIsPlaying(false);
+    };
+
+    synthRef.current = utterance;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  // Toggle phát/dừng audio (hỗ trợ phát âm thanh thật từ micro hoặc đọc bằng giọng AI)
   const togglePlayAudio = () => {
-    if (audioInstanceRef.current) {
+    // 1. Nếu có file âm thanh thật từ micro phòng họp
+    if (audioInstanceRef.current && activeAudio?.audioUrl) {
       if (isPlaying) {
         audioInstanceRef.current.pause();
         setIsPlaying(false);
@@ -211,12 +256,23 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
           .play()
           .then(() => setIsPlaying(true))
           .catch((err) => {
-            console.warn('Lỗi trình phát âm thanh:', err);
-            setIsPlaying((prev) => !prev);
+            console.warn('Lỗi phát âm thanh thật, chuyển sang giọng đọc AI:', err);
+            speakSummary();
+            setIsPlaying(true);
           });
       }
+      return;
+    }
+
+    // 2. Nếu không có file âm thanh ghi từ trước: Dùng Giọng đọc AI đọc tóm tắt
+    if (isPlaying) {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      setIsPlaying(false);
     } else {
-      setIsPlaying((prev) => !prev);
+      speakSummary();
+      setIsPlaying(true);
     }
   };
 
@@ -280,6 +336,7 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
     formattedCurrentTime,
     formattedTotalDuration,
     handleSeek,
+    activeAudio,
     playbackSpeed,
     cyclePlaybackSpeed,
     copied,
