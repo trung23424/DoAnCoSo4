@@ -78,11 +78,24 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
                 role: 'Chủ trì cuộc họp',
               },
             ],
-            aiSummary: firestoreDetails.summary || {
-              executive: 'Đang chuẩn bị tóm tắt...',
-              keyPoints: [],
-              decisions: [],
-              actionItems: [],
+            aiSummary: {
+              overview:
+                firestoreDetails.summary?.executive ||
+                firestoreDetails.summary?.overview ||
+                'Biên bản tóm tắt cuộc họp do AI SmartMeet tự động tạo.',
+              executive:
+                firestoreDetails.summary?.executive ||
+                firestoreDetails.summary?.overview ||
+                'Biên bản tóm tắt cuộc họp do AI SmartMeet tự động tạo.',
+              keyPoints:
+                firestoreDetails.summary?.keyPoints?.length > 0
+                  ? firestoreDetails.summary.keyPoints
+                  : [
+                      'Khởi tạo phòng họp WebRTC P2P thành công',
+                      'Trợ lý AI SmartMeet sẵn sàng nhận diện giọng nói tiếng Việt',
+                    ],
+              decisions: firestoreDetails.summary?.decisions || [],
+              actionItems: firestoreDetails.summary?.actionItems || [],
             },
             transcript:
               firestoreDetails.transcript && firestoreDetails.transcript.length > 0

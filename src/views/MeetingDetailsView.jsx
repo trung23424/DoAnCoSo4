@@ -284,7 +284,9 @@ export default function MeetingDetailsView({
                     <h3>1. Tóm tắt tổng quan (Executive Summary)</h3>
                   </div>
                   <p className="text-slate-700 text-sm leading-relaxed bg-blue-50/50 border border-blue-100/80 rounded-2xl p-4">
-                    {meeting.aiSummary?.overview}
+                    {meeting.aiSummary?.executive ||
+                      meeting.aiSummary?.overview ||
+                      'Biên bản tóm tắt cuộc họp do AI SmartMeet tự động tạo.'}
                   </p>
                 </div>
 
