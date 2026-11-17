@@ -22,7 +22,11 @@ import {
   Share2,
 } from 'lucide-react';
 
-export default function MeetingDetailsView({ meetingId = 'asm-8f2k1q', onBack }) {
+export default function MeetingDetailsView({
+  meetingId = 'asm-8f2k1q',
+  audioResult = null,
+  onBack,
+}) {
   const {
     meeting,
     activeTab,
@@ -41,7 +45,7 @@ export default function MeetingDetailsView({ meetingId = 'asm-8f2k1q', onBack })
     handleCopySummary,
     handleExportPDF,
     handleExportWord,
-  } = useMeetingDetailsController(meetingId);
+  } = useMeetingDetailsController(meetingId, audioResult);
 
   if (!meeting) {
     return (
@@ -219,6 +223,16 @@ export default function MeetingDetailsView({ meetingId = 'asm-8f2k1q', onBack })
                 >
                   {playbackSpeed}x
                 </button>
+                {audioResult?.audioUrl && (
+                  <a
+                    href={audioResult.audioUrl}
+                    download={`record-${meeting?.id || 'meeting'}.webm`}
+                    className="p-1.5 text-blue-400 hover:text-blue-300 transition-colors"
+                    title="Tải tệp ghi âm cuộc họp"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                )}
                 <div className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1">
                   <Volume2 className="w-4 h-4" />
                 </div>

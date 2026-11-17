@@ -1,8 +1,8 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import meetingDetailsMock from '../models/meetingDetailsMock.json';
 import { getMeetingDetailsFromFirestore } from '../services/meetingsService';
 
-export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q') {
+export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', audioResult = null) {
   const [meetingData, setMeetingData] = useState(
     meetingDetailsMock[meetingId] || meetingDetailsMock['asm-8f2k1q']
   );
@@ -18,11 +18,37 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q') {
   // State tìm kiếm trong bản ghi lời thoại (Transcript)
   const [transcriptSearch, setTranscriptSearch] = useState('');
 
-  // State Trình phát âm thanh (Audio Player Simulation)
+  // State Trình phát âm thanh (Audio Player)
   const [isPlaying, setIsPlaying] = useState(false);
-  const [audioProgress, setAudioProgress] = useState(18); // 18% tiến độ mô phỏng
+  const [audioProgress, setAudioProgress] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [copied, setCopied] = useState(false);
+
+  const audioInstanceRef = useRef(null);
+
+  // Gắn luồng âm thanh thực tế nếu có Audio Blob được ghi từ phòng họp
+  useEffect(() => {
+    if (audioResult?.audioUrl) {
+      const audio = new Audio(audioResult.audioUrl);
+      audioInstanceRef.current = audio;
+
+      audio.ontimeupdate = () => {
+        if (audio.duration) {
+          setAudioProgress((audio.currentTime / audio.duration) * 100);
+        }
+      };
+
+      audio.onended = () => {
+        setIsPlaying(false);
+        setAudioProgress(0);
+      };
+
+      return () => {
+        audio.pause();
+        audioInstanceRef.current = null;
+      };
+    }
+  }, [audioResult?.audioUrl]);
 
   // Tải dữ liệu cuộc họp từ Cloud Firestore thật
   useEffect(() => {
@@ -109,16 +135,36 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q') {
     );
   };
 
-  // Toggle phát/dừng audio
+  // Toggle phát/dừng audio (hỗ trợ phát âm thanh thật từ phiên ghi âm)
   const togglePlayAudio = () => {
-    setIsPlaying((prev) => !prev);
+    if (audioInstanceRef.current) {
+      if (isPlaying) {
+        audioInstanceRef.current.pause();
+        setIsPlaying(false);
+      } else {
+        audioInstanceRef.current.playbackRate = playbackSpeed;
+        audioInstanceRef.current
+          .play()
+          .then(() => setIsPlaying(true))
+          .catch((err) => {
+            console.warn('Lỗi trình phát âm thanh:', err);
+            setIsPlaying((prev) => !prev);
+          });
+      }
+    } else {
+      setIsPlaying((prev) => !prev);
+    }
   };
 
   // Thay đổi tốc độ phát
   const cyclePlaybackSpeed = () => {
     const speeds = [1, 1.25, 1.5, 2];
     const nextIdx = (speeds.indexOf(playbackSpeed) + 1) % speeds.length;
-    setPlaybackSpeed(speeds[nextIdx]);
+    const newSpeed = speeds[nextIdx];
+    setPlaybackSpeed(newSpeed);
+    if (audioInstanceRef.current) {
+      audioInstanceRef.current.playbackRate = newSpeed;
+    }
   };
 
   // Lọc Transcript theo từ khóa tìm kiếm

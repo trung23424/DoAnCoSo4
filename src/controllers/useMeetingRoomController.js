@@ -7,6 +7,7 @@ import {
   joinCallSession,
   checkCallExists,
 } from '../services/webrtcService';
+import meetingRecorder from '../services/audioRecorderService';
 
 export default function useMeetingRoomController({
   onMeetingFinished,
@@ -33,6 +34,7 @@ export default function useMeetingRoomController({
   const [isPeerConnected, setIsPeerConnected] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [recordedAudioData, setRecordedAudioData] = useState(null);
 
   // Bộ đếm thời gian họp (Timer)
   const [seconds, setSeconds] = useState(0);
@@ -103,6 +105,18 @@ export default function useMeetingRoomController({
           userVideoRef.current.srcObject = stream;
         }
 
+        // Tự động kích hoạt bộ thu âm trộn tiếng (Audio Mixer) nếu bật thu âm
+        if (isRecording) {
+          try {
+            meetingRecorder.start({
+              localStream: stream,
+              remoteStream: null,
+            });
+          } catch (e) {
+            console.warn('[AudioRecorder] Không thể tự động bắt đầu thu âm:', e);
+          }
+        }
+
         setConnectionStatus('connecting');
 
         // 2. Định nghĩa các callback khi nhận remote stream hoặc thay đổi trạng thái
@@ -117,6 +131,9 @@ export default function useMeetingRoomController({
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = rStream;
             }
+
+            // Trộn âm thanh của đối tác vào bộ ghi âm cuộc họp
+            meetingRecorder.addRemoteStream(rStream);
           },
           onConnectionStateChange: (state) => {
             if (!isMounted) return;
@@ -165,6 +182,7 @@ export default function useMeetingRoomController({
 
     return () => {
       isMounted = false;
+      meetingRecorder.cleanup();
       if (cleanupRef.current) {
         cleanupRef.current();
       }
@@ -272,7 +290,32 @@ export default function useMeetingRoomController({
     }
   };
 
-  const toggleRecording = () => setIsRecording((prev) => !prev);
+  // Toggle Thu âm đa kênh
+  const toggleRecording = () => {
+    setIsRecording((prev) => {
+      const nextState = !prev;
+      if (nextState) {
+        if (meetingRecorder.isPaused) {
+          meetingRecorder.resume();
+        } else if (!meetingRecorder.isRecording && localStreamRef.current) {
+          try {
+            meetingRecorder.start({
+              localStream: localStreamRef.current,
+              remoteStream: remoteStreamRef.current,
+            });
+          } catch (e) {
+            console.warn('[AudioRecorder] Không thể bật thu âm:', e);
+          }
+        }
+      } else {
+        if (meetingRecorder.isRecording) {
+          meetingRecorder.pause();
+        }
+      }
+      return nextState;
+    });
+  };
+
   const toggleCaptions = () => setShowCaptions((prev) => !prev);
 
   // Toggle Side Panel
@@ -299,7 +342,7 @@ export default function useMeetingRoomController({
   };
 
   // Quy trình Kết thúc cuộc họp & Xử lý AI
-  const handleEndMeeting = () => {
+  const handleEndMeeting = async () => {
     // 1. Dọn dẹp WebRTC & giải phóng Camera / Mic ngay
     if (cleanupRef.current) {
       try {
@@ -313,10 +356,19 @@ export default function useMeetingRoomController({
       screenTrackRef.current.stop();
     }
 
+    // 2. Dừng thu âm và nhận file âm thanh thật
+    let audioResult = null;
+    try {
+      audioResult = await meetingRecorder.stop();
+      setRecordedAudioData(audioResult);
+    } catch (recErr) {
+      console.warn('[AudioRecorder] Lỗi dừng thu âm:', recErr);
+    }
+
     setIsProcessingAI(true);
     setAiStep(1);
 
-    // Bước 1: Thu âm MediaRecorder -> Xuất WAV (1.2s)
+    // Bước 1: Thu âm MediaRecorder -> Xuất WAV/WebM (1.2s)
     setTimeout(() => {
       setAiStep(2); // Bước 2: OpenAI Whisper tiếng Việt (1.5s)
       setTimeout(() => {
@@ -324,7 +376,7 @@ export default function useMeetingRoomController({
         setTimeout(() => {
           setIsProcessingAI(false);
           if (onMeetingFinished) {
-            onMeetingFinished(roomId);
+            onMeetingFinished(roomId, audioResult);
           }
         }, 1500);
       }, 1500);
@@ -369,6 +421,7 @@ export default function useMeetingRoomController({
     remoteStream,
     connectionStatus,
     isPeerConnected,
+    recordedAudioData,
     toggleMic,
     toggleCam,
     toggleScreenShare,

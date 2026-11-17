@@ -109,8 +109,13 @@ function App() {
     setCurrentView('meeting-room');
   };
 
+  const [latestAudioResult, setLatestAudioResult] = useState(null);
+
   // Khi kết thúc họp và AI xử lý xong -> Chuyển sang xem biên bản họp
-  const handleMeetingFinished = (meetingId) => {
+  const handleMeetingFinished = (meetingId, audioResult) => {
+    if (audioResult) {
+      setLatestAudioResult(audioResult);
+    }
     setSelectedMeetingId(meetingId || 'asm-8f2k1q');
     setCurrentView('meeting-details');
   };
@@ -177,6 +182,7 @@ function App() {
       {currentView === 'meeting-details' && (
         <MeetingDetailsView
           meetingId={selectedMeetingId}
+          audioResult={latestAudioResult}
           onBack={handleBackToDashboard}
         />
       )}
