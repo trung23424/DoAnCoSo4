@@ -52,10 +52,16 @@ export class MeetingAudioRecorder {
       this.audioChunks = [];
       this.startTime = Date.now();
 
-      // Nếu chưa có đối tác, dùng trực tiếp localStream để đảm bảo MediaRecorder bắt 100% âm thanh micro
-      let streamToRecord = localStream;
+      // 1. TRÍCH XUẤT CHỈ CÁC AUDIO TRACK (LOẠI BỎ HOÀN TOÀN VIDEO TRACK ĐỂ TRÁNH NOTSUPPORTEDERROR)
+      const localAudioTracks = localStream ? localStream.getAudioTracks() : [];
+      let localAudioStream =
+        localAudioTracks.length > 0 ? new MediaStream(localAudioTracks) : null;
 
-      if (remoteStream && remoteStream.getAudioTracks().length > 0) {
+      let streamToRecord = localAudioStream;
+
+      // 2. NẾU CÓ ĐỐI TÁC (REMOTE STREAM), TIẾN HÀNH TRỘN ĐA KÊNH QUA WEB AUDIO API
+      const remoteAudioTracks = remoteStream ? remoteStream.getAudioTracks() : [];
+      if (remoteAudioTracks.length > 0) {
         try {
           const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
           if (AudioCtxClass) {
@@ -64,28 +70,58 @@ export class MeetingAudioRecorder {
               this.audioContext.resume();
             }
             this.destination = this.audioContext.createMediaStreamDestination();
-            if (localStream && localStream.getAudioTracks().length > 0) {
-              this.localSource = this.audioContext.createMediaStreamSource(localStream);
+
+            if (localAudioStream && localAudioStream.getAudioTracks().length > 0) {
+              this.localSource = this.audioContext.createMediaStreamSource(localAudioStream);
               this.localSource.connect(this.destination);
             }
-            this.remoteSource = this.audioContext.createMediaStreamSource(remoteStream);
+
+            const remoteAudioStream = new MediaStream(remoteAudioTracks);
+            this.remoteSource = this.audioContext.createMediaStreamSource(remoteAudioStream);
             this.remoteSource.connect(this.destination);
+
             streamToRecord = this.destination.stream;
           }
         } catch (e) {
-          console.warn('[AudioRecorder] Lỗi trộn đa kênh, fallback sang localStream:', e);
-          streamToRecord = localStream;
+          console.warn('[AudioRecorder] Lỗi trộn đa kênh, fallback sang luồng audio cục bộ:', e);
+          streamToRecord = localAudioStream;
         }
       }
 
+      // 3. NẾU VẪN CHƯA CÓ AUDIO TRACK NÀO, TẠO MỘT SILENT AUDIO TRACK ĐỂ RECORDER LUÔN HỢP LỆ
       if (!streamToRecord || streamToRecord.getAudioTracks().length === 0) {
-        console.warn('[AudioRecorder] Không tìm thấy audio track hợp lệ, vẫn thử stream mặc định');
+        console.warn('[AudioRecorder] Không tìm thấy audio track hợp lệ, khởi tạo luồng âm thanh dự phòng');
+        try {
+          const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtxClass) {
+            const fallbackCtx = new AudioCtxClass();
+            const osc = fallbackCtx.createOscillator();
+            const gain = fallbackCtx.createGain();
+            gain.gain.value = 0; // Luồng yên lặng dự phòng
+            const dest = fallbackCtx.createMediaStreamDestination();
+            osc.connect(gain);
+            gain.connect(dest);
+            osc.start();
+            streamToRecord = dest.stream;
+          }
+        } catch (silentErr) {
+          console.warn('[AudioRecorder] Không thể tạo silent track:', silentErr);
+        }
       }
 
+      // 4. XÁC ĐỊNH MIME TYPE TƯƠNG THÍCH VÀ KHỞI TẠO MEDIARECORDER
       const mimeType = MeetingAudioRecorder.getSupportedMimeType();
       const recorderOptions = mimeType ? { mimeType } : {};
 
-      this.mediaRecorder = new MediaRecorder(streamToRecord, recorderOptions);
+      try {
+        this.mediaRecorder = new MediaRecorder(streamToRecord, recorderOptions);
+      } catch (recInitErr) {
+        console.warn(
+          '[AudioRecorder] MediaRecorder từ chối MIME tùy chỉnh, chuyển về cấu hình mặc định trình duyệt:',
+          recInitErr
+        );
+        this.mediaRecorder = new MediaRecorder(streamToRecord);
+      }
 
       this.mediaRecorder.ondataavailable = (event) => {
         if (event.data && event.data.size > 0) {
@@ -96,12 +132,18 @@ export class MeetingAudioRecorder {
         }
       };
 
-      // Bắt đầu thu âm và cắt chunk mỗi 500ms
-      this.mediaRecorder.start(500);
+      // 5. BẮT ĐẦU GHI ÂM (Timeslice 500ms)
+      try {
+        this.mediaRecorder.start(500);
+      } catch (startErr) {
+        console.warn('[AudioRecorder] Lỗi start với timeslice 500ms, thử start() trực tiếp:', startErr);
+        this.mediaRecorder.start();
+      }
+
       this.isRecording = true;
       this.isPaused = false;
 
-      console.log(`[AudioRecorder] Bắt đầu thu âm cuộc họp (MIME: ${mimeType || 'default'})`);
+      console.log(`[AudioRecorder] Bắt đầu thu âm cuộc họp thành công (MIME: ${mimeType || 'default'})`);
       return true;
     } catch (err) {
       console.error('[AudioRecorder] Lỗi khởi động bộ thu âm:', err);
@@ -116,13 +158,15 @@ export class MeetingAudioRecorder {
    */
   addRemoteStream(remoteStream) {
     if (!this.audioContext || !this.destination || !remoteStream) return;
-    if (remoteStream.getAudioTracks().length === 0) return;
+    const audioTracks = remoteStream.getAudioTracks();
+    if (audioTracks.length === 0) return;
 
     try {
       if (this.remoteSource) {
         this.remoteSource.disconnect();
       }
-      this.remoteSource = this.audioContext.createMediaStreamSource(remoteStream);
+      const remoteAudioStream = new MediaStream(audioTracks);
+      this.remoteSource = this.audioContext.createMediaStreamSource(remoteAudioStream);
       this.remoteSource.connect(this.destination);
       console.log('[AudioRecorder] Đã kết nối âm thanh đối tác vào luồng thu âm.');
     } catch (err) {
