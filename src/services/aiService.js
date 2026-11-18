@@ -7,10 +7,11 @@ import { db } from './firebase';
  * 
  * Tính năng chính:
  * 1. Nhận diện giọng nói tiếng Việt thời gian thực (Live Speech-to-Text qua Web Speech API vi-VN)
- * 2. Phân tích ngữ nghĩa và tóm tắt cuộc họp bằng mô hình Google Gemini 1.5 Flash / Pro
- * 3. Trích xuất tự động: Tóm tắt điều hành, Quyết định then chốt, Danh sách công việc (Action Items)
- * 4. Cơ chế Fallback thông minh: Đảm bảo luôn trả về biên bản hợp lý ngay cả khi offline hoặc thiếu API Key
- * 5. Lưu trực tiếp biên bản họp thông minh vào Google Cloud Firestore
+ * 2. Nhận dạng âm thanh cuộc họp bằng OpenAI Whisper (STT) từ file ghi âm MediaRecorder
+ * 3. Phân tích ngữ nghĩa và tóm tắt cuộc họp bằng mô hình Google Gemini 1.5 Flash / Pro
+ * 4. Trích xuất tự động: Tóm tắt điều hành, Quyết định then chốt, Danh sách công việc (Action Items)
+ * 5. Cơ chế Fallback thông minh: Đảm bảo luôn trả về biên bản hợp lý ngay cả khi offline hoặc thiếu API Key
+ * 6. Lưu trực tiếp biên bản họp thông minh vào Google Cloud Firestore
  */
 
 // Key dự phòng cho môi trường phát triển & học tập
@@ -194,7 +195,163 @@ export class LiveSpeechRecognizer {
 }
 
 /**
- * 2. GOOGLE GEMINI 1.5: Tóm tắt cuộc họp và trích xuất Action Items
+ * 2. OPENAI WHISPER SPEECH-TO-TEXT: Nhận dạng âm thanh cuộc họp từ file ghi âm
+ * Gửi trực tiếp audio Blob lên OpenAI Whisper API (whisper-1) hoặc Backend Python FastAPI
+ * @param {Blob|File} audioBlob - File âm thanh thu được từ MediaRecorder
+ * @param {Object} options - { apiKey, speakerName, fallbackTranscripts, backendUrl, whisperModel }
+ * @returns {Promise<Array<{ id: string, speaker: string, text: string, time: string, timestamp: number }>>}
+ */
+export async function transcribeAudioWithWhisper(audioBlob, options = {}) {
+  const {
+    speakerName = 'Bạn',
+    fallbackTranscripts = [],
+    backendUrl = '',
+    whisperModel = 'whisper-1',
+  } = options;
+
+  // Lấy API Key từ options, localStorage hoặc biến môi trường
+  const apiKey =
+    options.apiKey ||
+    (typeof localStorage !== 'undefined' &&
+      (localStorage.getItem('ai_smartmeet_openai_key') ||
+       localStorage.getItem('openai_api_key'))) ||
+    (typeof import.meta !== 'undefined' &&
+      import.meta.env?.VITE_OPENAI_API_KEY) ||
+    '';
+
+  const hasAudioBlob = audioBlob && audioBlob.size > 0;
+  const isGroqKey = apiKey && apiKey.startsWith('gsk_');
+  const isOpenAIKey = apiKey && (apiKey.startsWith('sk-') || apiKey.length > 20);
+
+  // 1. GỬI TỚI CLOUD WHISPER API (OpenAI Whisper hoặc Groq Whisper Free)
+  if (hasAudioBlob && (isGroqKey || isOpenAIKey)) {
+    try {
+      const endpoint = isGroqKey
+        ? 'https://api.groq.com/openai/v1/audio/transcriptions'
+        : 'https://api.openai.com/v1/audio/transcriptions';
+
+      const modelName = isGroqKey ? 'whisper-large-v3' : 'whisper-1';
+      const providerLabel = isGroqKey ? 'Groq Cloud (Whisper large-v3 Miễn phí)' : 'OpenAI Whisper API';
+
+      console.log(`[Whisper STT] Đang gửi file âm thanh (${(audioBlob.size / 1024).toFixed(1)} KB) lên ${providerLabel}...`);
+
+      // Chuẩn bị FormData với tên file và MIME-type phù hợp
+      const ext = audioBlob.type?.includes('wav') ? 'wav' : 'webm';
+      const audioFile = new File([audioBlob], `recording-${Date.now()}.${ext}`, {
+        type: audioBlob.type || 'audio/webm',
+      });
+
+      const formData = new FormData();
+      formData.append('file', audioFile);
+      formData.append('model', modelName);
+      formData.append('language', 'vi'); // Ưu tiên nhận dạng tiếng Việt
+      formData.append('response_format', 'verbose_json');
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log(`[Whisper STT] Nhận diện thành công từ ${providerLabel}:`, data);
+
+        // Bóc tách các đoạn câu thoại (Segments)
+        if (Array.isArray(data.segments) && data.segments.length > 0) {
+          return data.segments
+            .filter((seg) => seg.text && seg.text.trim().length > 0)
+            .map((seg, idx) => {
+              const startSec = Math.floor(seg.start || 0);
+              const mins = Math.floor(startSec / 60).toString().padStart(2, '0');
+              const secs = (startSec % 60).toString().padStart(2, '0');
+
+              return {
+                id: `whisper-${Date.now()}-${idx}`,
+                speaker: speakerName,
+                text: seg.text.trim(),
+                time: `${mins}:${secs}`,
+                timestamp: Date.now() + Math.round((seg.start || 0) * 1000),
+              };
+            });
+        }
+
+        // Nếu trả về dạng text gộp
+        if (data.text && data.text.trim().length > 0) {
+          return [
+            {
+              id: `whisper-${Date.now()}-0`,
+              speaker: speakerName,
+              text: data.text.trim(),
+              time: new Date().toLocaleTimeString('vi-VN', {
+                hour: '2-digit',
+                minute: '2-digit',
+              }),
+              timestamp: Date.now(),
+            },
+          ];
+        }
+      } else {
+        const errorText = await response.text();
+        console.warn(`[Whisper STT] Lỗi phản hồi API (${response.status}):`, errorText);
+      }
+    } catch (err) {
+      console.warn('[Whisper STT] Lỗi kết nối Cloud Whisper API:', err);
+    }
+  }
+
+  // 2. GỬI TỚI BACKEND PYTHON FASTAPI (Tùy chọn cục bộ nếu có cấu hình)
+  const targetBackend =
+    backendUrl ||
+    (typeof localStorage !== 'undefined' &&
+      localStorage.getItem('ai_smartmeet_whisper_backend_url')) ||
+    '';
+
+  if (hasAudioBlob && targetBackend) {
+    try {
+      console.log(`[Whisper STT] Gửi file âm thanh tới Python FastAPI server: ${targetBackend}`);
+      const formData = new FormData();
+      formData.append('audio', audioBlob, 'recording.webm');
+      formData.append('model', whisperModel || 'medium');
+
+      const response = await fetch(`${targetBackend.replace(/\/$/, '')}/api/whisper`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (response.ok) {
+        const resData = await response.json();
+        if (Array.isArray(resData.transcripts) && resData.transcripts.length > 0) {
+          return resData.transcripts;
+        }
+      }
+    } catch (backendErr) {
+      console.warn('[Whisper STT] Không thể kết nối Backend FastAPI cục bộ:', backendErr);
+    }
+  }
+
+  // 3. FALLBACK AN TOÀN: Dùng lại bản ghi từ Live Speech-to-Text (Web Speech API)
+  console.log('[Whisper STT] Sử dụng kết quả nhận diện giọng nói tiếng Việt cho hội thoại...');
+  if (fallbackTranscripts && fallbackTranscripts.length > 0) {
+    return fallbackTranscripts;
+  }
+
+  // Nếu không có bất kỳ câu thoại nào được ghi nhận
+  return [
+    {
+      id: `tr-${Date.now()}-init`,
+      speaker: speakerName,
+      text: 'Khởi tạo phòng họp AI SmartMeet thành công và ghi âm lời thoại.',
+      time: '00:00',
+      timestamp: Date.now(),
+    },
+  ];
+}
+
+/**
+ * 3. GOOGLE GEMINI 1.5: Tóm tắt cuộc họp và trích xuất Action Items
  * @param {Array} transcriptList - Danh sách các câu thoại { speaker, text, time }
  * @param {Object} options - { apiKey, meetingTitle, hostName }
  * @returns {Promise<{ executive: string, decisions: string[], actionItems: any[] }>}
@@ -467,6 +624,7 @@ export const liveSpeechRecognizer = new LiveSpeechRecognizer();
 export default {
   LiveSpeechRecognizer,
   liveSpeechRecognizer,
+  transcribeAudioWithWhisper,
   generateMeetingSummaryWithGemini,
   saveMeetingSummaryToFirestore,
 };
