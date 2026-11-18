@@ -7,8 +7,23 @@ export default function useSettingsController() {
   // AI Settings State
   const [whisperModel, setWhisperModel] = useState(defaultSettings.ai.whisperModel);
   const [aiProvider, setAiProvider] = useState(defaultSettings.ai.aiProvider);
-  const [geminiApiKey, setGeminiApiKey] = useState(defaultSettings.ai.geminiApiKey);
+  const [geminiApiKey, setGeminiApiKey] = useState(() => {
+    return (
+      (typeof localStorage !== 'undefined' &&
+        localStorage.getItem('ai_smartmeet_gemini_key')) ||
+      defaultSettings.ai.geminiApiKey ||
+      ''
+    );
+  });
+  const [openaiApiKey, setOpenaiApiKey] = useState(() => {
+    return (
+      (typeof localStorage !== 'undefined' &&
+        localStorage.getItem('ai_smartmeet_openai_key')) ||
+      ''
+    );
+  });
   const [showApiKey, setShowApiKey] = useState(false);
+  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState(defaultSettings.ai.systemPrompt);
   const [autoRecording, setAutoRecording] = useState(defaultSettings.ai.autoRecording);
 
@@ -101,6 +116,10 @@ export default function useSettingsController() {
   // Lưu cài đặt
   const handleSaveSettings = (e) => {
     e?.preventDefault();
+    if (typeof localStorage !== 'undefined') {
+      if (geminiApiKey) localStorage.setItem('ai_smartmeet_gemini_key', geminiApiKey.trim());
+      if (openaiApiKey) localStorage.setItem('ai_smartmeet_openai_key', openaiApiKey.trim());
+    }
     setSavedToast(true);
     setTimeout(() => setSavedToast(false), 2500);
   };
@@ -114,8 +133,12 @@ export default function useSettingsController() {
     setAiProvider,
     geminiApiKey,
     setGeminiApiKey,
+    openaiApiKey,
+    setOpenaiApiKey,
     showApiKey,
     setShowApiKey,
+    showOpenaiKey,
+    setShowOpenaiKey,
     systemPrompt,
     setSystemPrompt,
     autoRecording,

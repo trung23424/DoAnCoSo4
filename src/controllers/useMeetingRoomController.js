@@ -10,6 +10,7 @@ import {
 import meetingRecorder from '../services/audioRecorderService';
 import {
   liveSpeechRecognizer,
+  transcribeAudioWithWhisper,
   generateMeetingSummaryWithGemini,
   saveMeetingSummaryToFirestore,
 } from '../services/aiService';
@@ -403,40 +404,52 @@ export default function useMeetingRoomController({
     setIsProcessingAI(true);
     setAiStep(1); // Bước 1: Thu âm MediaRecorder -> Xuất WAV/WebM
 
-    setTimeout(() => {
-      setAiStep(2); // Bước 2: Whisper STT xử lý lời thoại tiếng Việt
+    setTimeout(async () => {
+      setAiStep(2); // Bước 2: OpenAI Whisper STT xử lý lời thoại tiếng Việt
 
-      setTimeout(async () => {
-        setAiStep(3); // Bước 3: Google Gemini 1.5 Tóm tắt & Action Items
+      const speakerName = currentUser?.name || currentUser?.fullName || 'Bạn';
+      const fallbackList = finalTranscripts.length > 0 ? finalTranscripts : liveTranscript;
+      let transcriptsToProcess = fallbackList;
 
-        try {
-          const speakerName = currentUser?.name || currentUser?.fullName || 'Bạn';
-          const transcriptsToProcess =
-            finalTranscripts.length > 0 ? finalTranscripts : liveTranscript;
+      try {
+        console.log('[MeetingRoom] Đang đưa file ghi âm vào pipeline OpenAI Whisper STT...');
+        const whisperResult = await transcribeAudioWithWhisper(audioResult?.blob, {
+          speakerName,
+          fallbackTranscripts: fallbackList,
+        });
 
-          // Gọi AI Gemini tóm tắt biên bản
-          const aiSummary = await generateMeetingSummaryWithGemini(transcriptsToProcess, {
-            meetingTitle: roomTitle,
-            hostName: speakerName,
-          });
+        if (Array.isArray(whisperResult) && whisperResult.length > 0) {
+          transcriptsToProcess = whisperResult;
+        }
+      } catch (whisperErr) {
+        console.warn('[MeetingRoom] Lỗi gọi Whisper STT, sử dụng fallback Live STT:', whisperErr);
+      }
 
-          // Lưu biên bản thông minh vào Cloud Firestore
-          await saveMeetingSummaryToFirestore(roomId, aiSummary, transcriptsToProcess);
+      setAiStep(3); // Bước 3: Google Gemini 1.5 Tóm tắt & Action Items
 
-          setTimeout(() => {
-            setIsProcessingAI(false);
-            if (onMeetingFinished) {
-              onMeetingFinished(roomId, audioResult);
-            }
-          }, 800);
-        } catch (aiErr) {
-          console.warn('[AI] Lỗi xử lý biên bản AI:', aiErr);
+      try {
+        // Gọi AI Gemini tóm tắt biên bản
+        const aiSummary = await generateMeetingSummaryWithGemini(transcriptsToProcess, {
+          meetingTitle: roomTitle,
+          hostName: speakerName,
+        });
+
+        // Lưu biên bản thông minh vào Cloud Firestore
+        await saveMeetingSummaryToFirestore(roomId, aiSummary, transcriptsToProcess);
+
+        setTimeout(() => {
           setIsProcessingAI(false);
           if (onMeetingFinished) {
             onMeetingFinished(roomId, audioResult);
           }
+        }, 800);
+      } catch (aiErr) {
+        console.warn('[AI] Lỗi xử lý biên bản AI:', aiErr);
+        setIsProcessingAI(false);
+        if (onMeetingFinished) {
+          onMeetingFinished(roomId, audioResult);
         }
-      }, 1500);
+      }
     }, 1200);
   };
 

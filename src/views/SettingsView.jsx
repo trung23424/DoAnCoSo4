@@ -33,8 +33,12 @@ export default function SettingsView({ onNavigate, currentUser, onLogout }) {
     setAiProvider,
     geminiApiKey,
     setGeminiApiKey,
+    openaiApiKey,
+    setOpenaiApiKey,
     showApiKey,
     setShowApiKey,
+    showOpenaiKey,
+    setShowOpenaiKey,
     systemPrompt,
     setSystemPrompt,
     autoRecording,
@@ -284,26 +288,73 @@ export default function SettingsView({ onNavigate, currentUser, onLogout }) {
               </div>
 
               {/* API Key Input */}
-              <div className="space-y-1.5 pt-2">
-                <label className="text-xs font-bold text-slate-700">
-                  {aiProvider === 'gemini' ? 'Google Gemini API Key' : 'OpenAI API Key'}
-                </label>
-                <div className="relative max-w-2xl">
-                  <input
-                    type={showApiKey ? 'text' : 'password'}
-                    value={geminiApiKey}
-                    onChange={(e) => setGeminiApiKey(e.target.value)}
-                    className="w-full pl-4 pr-11 py-2.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-slate-800"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey((prev) => !prev)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
-                  >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                {/* Gemini LLM Key */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">
+                      Google Gemini API Key (Tóm tắt biên bản)
+                    </label>
+                    <span className="text-[10px] text-blue-700 font-semibold">Tự động Fallback</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? 'text' : 'password'}
+                      value={geminiApiKey}
+                      onChange={(e) => setGeminiApiKey(e.target.value)}
+                      placeholder="AIzaSy..."
+                      className="w-full pl-4 pr-11 py-2.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-slate-800"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey((prev) => !prev)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Whisper STT Key (OpenAI hoặc Groq Free) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700">
+                      OpenAI Whisper / Groq API Key (STT)
+                    </label>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      Hỗ trợ Groq Free (gsk_...)
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type={showOpenaiKey ? 'text' : 'password'}
+                      value={openaiApiKey}
+                      onChange={(e) => setOpenaiApiKey(e.target.value)}
+                      placeholder="sk-... (OpenAI) hoặc gsk_... (Groq Free)"
+                      className="w-full pl-4 pr-11 py-2.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white text-slate-800"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOpenaiKey((prev) => !prev)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                    >
+                      {showOpenaiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
               </div>
+              <p className="text-[11px] text-slate-500 italic">
+                * Mẹo: Có thể lấy API Key miễn phí 100% không cần thẻ tại{' '}
+                <a
+                  href="https://console.groq.com/keys"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-blue-700 underline font-medium hover:text-blue-900"
+                >
+                  console.groq.com/keys
+                </a>{' '}
+                để chạy Whisper large-v3 tốc độ cao.
+              </p>
             </div>
 
             {/* Prompt Engineering System Prompt */}
