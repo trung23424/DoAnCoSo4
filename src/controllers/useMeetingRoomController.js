@@ -7,6 +7,12 @@ import {
   joinCallSession,
   checkCallExists,
 } from '../services/webrtcService';
+import meetingRecorder from '../services/audioRecorderService';
+import {
+  liveSpeechRecognizer,
+  generateMeetingSummaryWithGemini,
+  saveMeetingSummaryToFirestore,
+} from '../services/aiService';
 
 export default function useMeetingRoomController({
   onMeetingFinished,
@@ -33,6 +39,7 @@ export default function useMeetingRoomController({
   const [isPeerConnected, setIsPeerConnected] = useState(false);
   const [localStream, setLocalStream] = useState(null);
   const [remoteStream, setRemoteStream] = useState(null);
+  const [recordedAudioData, setRecordedAudioData] = useState(null);
 
   // Bộ đếm thời gian họp (Timer)
   const [seconds, setSeconds] = useState(0);
@@ -40,6 +47,8 @@ export default function useMeetingRoomController({
   // Phụ đề thời gian thực (Live Captions do AI nhận dạng)
   const [showCaptions, setShowCaptions] = useState(true);
   const [captionIndex, setCaptionIndex] = useState(0);
+  const [liveCaption, setLiveCaption] = useState(null);
+  const [liveTranscript, setLiveTranscript] = useState([]);
 
   // Panel cạnh bên (Participants / Chat / P2P Info)
   const [activeSidePanel, setActiveSidePanel] = useState(null); // 'participants' | 'chat' | 'p2p' | null
@@ -76,6 +85,28 @@ export default function useMeetingRoomController({
     return () => clearInterval(interval);
   }, [showCaptions]);
 
+  // Khởi động nhận diện giọng nói tiếng Việt thời gian thực (Live STT qua Web Speech API)
+  useEffect(() => {
+    if (showCaptions && isMicOn) {
+      const speakerName = currentUser?.name || currentUser?.fullName || 'Bạn';
+      liveSpeechRecognizer.start({
+        speaker: speakerName,
+        onCaption: (caption) => {
+          setLiveCaption(caption);
+        },
+        onTranscriptUpdate: (list) => {
+          setLiveTranscript(list);
+        },
+      });
+    } else {
+      liveSpeechRecognizer.stop();
+    }
+
+    return () => {
+      liveSpeechRecognizer.stop();
+    };
+  }, [showCaptions, isMicOn, currentUser]);
+
   // Khởi tạo luồng WebRTC P2P thật khi vào phòng
   useEffect(() => {
     let isMounted = true;
@@ -103,6 +134,18 @@ export default function useMeetingRoomController({
           userVideoRef.current.srcObject = stream;
         }
 
+        // Tự động kích hoạt bộ thu âm trộn tiếng (Audio Mixer) nếu bật thu âm
+        if (isRecording) {
+          try {
+            meetingRecorder.start({
+              localStream: stream,
+              remoteStream: null,
+            });
+          } catch (e) {
+            console.warn('[AudioRecorder] Không thể tự động bắt đầu thu âm:', e);
+          }
+        }
+
         setConnectionStatus('connecting');
 
         // 2. Định nghĩa các callback khi nhận remote stream hoặc thay đổi trạng thái
@@ -117,6 +160,9 @@ export default function useMeetingRoomController({
             if (remoteVideoRef.current) {
               remoteVideoRef.current.srcObject = rStream;
             }
+
+            // Trộn âm thanh của đối tác vào bộ ghi âm cuộc họp
+            meetingRecorder.addRemoteStream(rStream);
           },
           onConnectionStateChange: (state) => {
             if (!isMounted) return;
@@ -165,6 +211,7 @@ export default function useMeetingRoomController({
 
     return () => {
       isMounted = false;
+      meetingRecorder.cleanup();
       if (cleanupRef.current) {
         cleanupRef.current();
       }
@@ -272,7 +319,32 @@ export default function useMeetingRoomController({
     }
   };
 
-  const toggleRecording = () => setIsRecording((prev) => !prev);
+  // Toggle Thu âm đa kênh
+  const toggleRecording = () => {
+    setIsRecording((prev) => {
+      const nextState = !prev;
+      if (nextState) {
+        if (meetingRecorder.isPaused) {
+          meetingRecorder.resume();
+        } else if (!meetingRecorder.isRecording && localStreamRef.current) {
+          try {
+            meetingRecorder.start({
+              localStream: localStreamRef.current,
+              remoteStream: remoteStreamRef.current,
+            });
+          } catch (e) {
+            console.warn('[AudioRecorder] Không thể bật thu âm:', e);
+          }
+        }
+      } else {
+        if (meetingRecorder.isRecording) {
+          meetingRecorder.pause();
+        }
+      }
+      return nextState;
+    });
+  };
+
   const toggleCaptions = () => setShowCaptions((prev) => !prev);
 
   // Toggle Side Panel
@@ -295,12 +367,27 @@ export default function useMeetingRoomController({
     };
 
     setChatMessages((prev) => [...prev, newMsg]);
+
+    // Lưu vào bản ghi hội thoại của AI
+    liveSpeechRecognizer.addManualTranscript(senderName, inputChat.trim());
     setInputChat('');
   };
 
   // Quy trình Kết thúc cuộc họp & Xử lý AI
-  const handleEndMeeting = () => {
-    // 1. Dọn dẹp WebRTC & giải phóng Camera / Mic ngay
+  const handleEndMeeting = async () => {
+    // 1. Dừng thu âm trước khi tắt Microphone để đảm bảo file ghi âm đầy đủ
+    let audioResult = null;
+    try {
+      audioResult = await meetingRecorder.stop();
+      setRecordedAudioData(audioResult);
+    } catch (recErr) {
+      console.warn('[AudioRecorder] Lỗi dừng thu âm:', recErr);
+    }
+
+    // 2. Dừng nhận diện giọng nói & thu thập toàn bộ Transcript
+    const finalTranscripts = liveSpeechRecognizer.stop();
+
+    // 3. Sau khi ghi âm xong mới giải phóng Camera và Micro
     if (cleanupRef.current) {
       try {
         cleanupRef.current();
@@ -314,19 +401,41 @@ export default function useMeetingRoomController({
     }
 
     setIsProcessingAI(true);
-    setAiStep(1);
+    setAiStep(1); // Bước 1: Thu âm MediaRecorder -> Xuất WAV/WebM
 
-    // Bước 1: Thu âm MediaRecorder -> Xuất WAV (1.2s)
     setTimeout(() => {
-      setAiStep(2); // Bước 2: OpenAI Whisper tiếng Việt (1.5s)
-      setTimeout(() => {
-        setAiStep(3); // Bước 3: Google Gemini LLM Tóm tắt & Action Items (1.5s)
-        setTimeout(() => {
+      setAiStep(2); // Bước 2: Whisper STT xử lý lời thoại tiếng Việt
+
+      setTimeout(async () => {
+        setAiStep(3); // Bước 3: Google Gemini 1.5 Tóm tắt & Action Items
+
+        try {
+          const speakerName = currentUser?.name || currentUser?.fullName || 'Bạn';
+          const transcriptsToProcess =
+            finalTranscripts.length > 0 ? finalTranscripts : liveTranscript;
+
+          // Gọi AI Gemini tóm tắt biên bản
+          const aiSummary = await generateMeetingSummaryWithGemini(transcriptsToProcess, {
+            meetingTitle: roomTitle,
+            hostName: speakerName,
+          });
+
+          // Lưu biên bản thông minh vào Cloud Firestore
+          await saveMeetingSummaryToFirestore(roomId, aiSummary, transcriptsToProcess);
+
+          setTimeout(() => {
+            setIsProcessingAI(false);
+            if (onMeetingFinished) {
+              onMeetingFinished(roomId, audioResult);
+            }
+          }, 800);
+        } catch (aiErr) {
+          console.warn('[AI] Lỗi xử lý biên bản AI:', aiErr);
           setIsProcessingAI(false);
           if (onMeetingFinished) {
-            onMeetingFinished(roomId);
+            onMeetingFinished(roomId, audioResult);
           }
-        }, 1500);
+        }
       }, 1500);
     }, 1200);
   };
@@ -357,6 +466,8 @@ export default function useMeetingRoomController({
     formattedTime,
     showCaptions,
     currentCaption: meetingRoomData.sampleCaptions[captionIndex],
+    liveCaption,
+    liveTranscript,
     activeSidePanel,
     chatMessages,
     inputChat,
@@ -369,6 +480,7 @@ export default function useMeetingRoomController({
     remoteStream,
     connectionStatus,
     isPeerConnected,
+    recordedAudioData,
     toggleMic,
     toggleCam,
     toggleScreenShare,

@@ -161,12 +161,44 @@ export const deleteMeetingFromFirestore = async (meetingId) => {
 
 /**
  * 4. Lấy chi tiết biên bản cuộc họp từ Firestore
+ * Tra cứu và hợp nhất từ cả 'meeting_details' và 'meetings'
  */
 export const getMeetingDetailsFromFirestore = async (meetingId) => {
   if (!meetingId) return null;
-  const docSnap = await getDoc(doc(db, 'meeting_details', meetingId));
-  if (docSnap.exists()) {
-    return docSnap.data();
+
+  try {
+    const detailsSnap = await getDoc(doc(db, 'meeting_details', meetingId));
+    const meetingSnap = await getDoc(doc(db, 'meetings', meetingId));
+
+    if (!detailsSnap.exists() && !meetingSnap.exists()) {
+      return null;
+    }
+
+    const detailsData = detailsSnap.exists() ? detailsSnap.data() : {};
+    const meetingData = meetingSnap.exists() ? meetingSnap.data() : {};
+
+    // Ưu tiên bản summary có nội dung đầy đủ nhất
+    const finalSummary =
+      (detailsData.summary?.executive || detailsData.summary?.overview)
+        ? detailsData.summary
+        : (meetingData.summary?.executive || meetingData.summary?.overview)
+        ? meetingData.summary
+        : detailsData.summary || meetingData.summary || {};
+
+    const finalTranscript =
+      detailsData.transcript?.length > 0
+        ? detailsData.transcript
+        : meetingData.transcript || [];
+
+    return {
+      ...meetingData,
+      ...detailsData,
+      summary: finalSummary,
+      transcript: finalTranscript,
+    };
+  } catch (err) {
+    console.warn('Lỗi đọc chi tiết cuộc họp từ Firestore:', err);
+    return null;
   }
-  return null;
 };
+

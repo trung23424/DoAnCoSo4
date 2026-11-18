@@ -22,7 +22,11 @@ import {
   Share2,
 } from 'lucide-react';
 
-export default function MeetingDetailsView({ meetingId = 'asm-8f2k1q', onBack }) {
+export default function MeetingDetailsView({
+  meetingId = 'asm-8f2k1q',
+  audioResult = null,
+  onBack,
+}) {
   const {
     meeting,
     activeTab,
@@ -34,6 +38,10 @@ export default function MeetingDetailsView({ meetingId = 'asm-8f2k1q', onBack })
     filteredTranscript,
     isPlaying,
     audioProgress,
+    formattedCurrentTime,
+    formattedTotalDuration,
+    handleSeek,
+    activeAudio,
     playbackSpeed,
     togglePlayAudio,
     cyclePlaybackSpeed,
@@ -41,7 +49,7 @@ export default function MeetingDetailsView({ meetingId = 'asm-8f2k1q', onBack })
     handleCopySummary,
     handleExportPDF,
     handleExportWord,
-  } = useMeetingDetailsController(meetingId);
+  } = useMeetingDetailsController(meetingId, audioResult);
 
   if (!meeting) {
     return (
@@ -192,20 +200,23 @@ export default function MeetingDetailsView({ meetingId = 'asm-8f2k1q', onBack })
 
               {/* Time display */}
               <div className="text-xs font-mono text-slate-300 flex-shrink-0">
-                <span className="font-bold text-white">08:15</span> / {meeting.duration}
+                <span className="font-bold text-white">{formattedCurrentTime || '00:00'}</span> / {formattedTotalDuration || meeting.duration}
               </div>
 
-              {/* Waveform simulation */}
-              <div className="flex-1 flex items-center gap-1 w-full overflow-hidden h-9 px-2">
+              {/* Waveform simulation (Có thể click để tua nhanh) */}
+              <div className="flex-1 flex items-center gap-1 w-full overflow-hidden h-9 px-2 cursor-pointer">
                 {waveformHeights.map((h, i) => {
                   const isPassed = i < Math.floor((waveformHeights.length * audioProgress) / 100);
+                  const barPercent = Math.round(((i + 1) / waveformHeights.length) * 100);
                   return (
                     <div
                       key={i}
+                      onClick={() => handleSeek(barPercent)}
                       style={{ height: `${h}%` }}
                       className={`flex-1 min-w-[3px] rounded-full transition-all duration-200 ${
-                        isPassed ? 'bg-blue-400' : 'bg-slate-700 hover:bg-slate-600'
+                        isPassed ? 'bg-blue-400' : 'bg-slate-700 hover:bg-slate-500'
                       }`}
+                      title={`Tua đến ${barPercent}%`}
                     />
                   );
                 })}
@@ -219,8 +230,24 @@ export default function MeetingDetailsView({ meetingId = 'asm-8f2k1q', onBack })
                 >
                   {playbackSpeed}x
                 </button>
-                <div className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1">
+                {(activeAudio?.audioUrl || audioResult?.audioUrl) && (
+                  <a
+                    href={activeAudio?.audioUrl || audioResult?.audioUrl}
+                    download={`record-${meeting?.id || 'meeting'}.webm`}
+                    className="p-1.5 text-blue-400 hover:text-blue-300 transition-colors"
+                    title="Tải tệp ghi âm cuộc họp"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                )}
+                <div
+                  title={activeAudio?.audioUrl ? 'Bản ghi âm Micro phòng họp' : 'Giọng đọc AI tiếng Việt (TTS)'}
+                  className="text-slate-400 hover:text-white transition-colors cursor-pointer p-1 flex items-center gap-1"
+                >
                   <Volume2 className="w-4 h-4" />
+                  {!activeAudio?.audioUrl && (
+                    <span className="text-[10px] text-blue-300 font-sans hidden sm:inline">AI Voice</span>
+                  )}
                 </div>
               </div>
             </div>
@@ -270,7 +297,9 @@ export default function MeetingDetailsView({ meetingId = 'asm-8f2k1q', onBack })
                     <h3>1. Tóm tắt tổng quan (Executive Summary)</h3>
                   </div>
                   <p className="text-slate-700 text-sm leading-relaxed bg-blue-50/50 border border-blue-100/80 rounded-2xl p-4">
-                    {meeting.aiSummary?.overview}
+                    {meeting.aiSummary?.executive ||
+                      meeting.aiSummary?.overview ||
+                      'Biên bản tóm tắt cuộc họp do AI SmartMeet tự động tạo.'}
                   </p>
                 </div>
 
