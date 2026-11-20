@@ -2,6 +2,7 @@ import React from 'react';
 import Sidebar from './components/Sidebar';
 import MeetingCard from './components/MeetingCard';
 import useMeetingHistoryController from '../controllers/useMeetingHistoryController';
+import { exportMeetingToPDF, exportMeetingToWord } from '../services/exportService';
 import {
   Clock,
   Video,
@@ -14,6 +15,8 @@ import {
   Sparkles,
   Users,
   Trash2,
+  FileText,
+  Download,
 } from 'lucide-react';
 
 export default function MeetingHistoryView({
@@ -281,6 +284,8 @@ export default function MeetingHistoryView({
                 meeting={meeting}
                 onViewSummary={onViewSummary}
                 onDelete={handleDeleteMeeting}
+                onExportPDF={exportMeetingToPDF}
+                onExportWord={exportMeetingToWord}
               />
             ))}
           </div>
@@ -371,6 +376,34 @@ export default function MeetingHistoryView({
                         {/* Actions */}
                         <td className="py-4 px-6 text-right">
                           <div className="flex items-center justify-end gap-2">
+                            {/* Quick Export PDF */}
+                            <button
+                              disabled={!isReady}
+                              onClick={() => isReady && exportMeetingToPDF(meeting)}
+                              title="Xuất PDF"
+                              className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
+                                isReady
+                                  ? 'text-rose-600 hover:bg-rose-50 hover:border-rose-300 cursor-pointer'
+                                  : 'text-slate-300 cursor-not-allowed border-transparent'
+                              }`}
+                            >
+                              <FileText className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Quick Export Word */}
+                            <button
+                              disabled={!isReady}
+                              onClick={() => isReady && exportMeetingToWord(meeting)}
+                              title="Xuất Word (.docx)"
+                              className={`p-1.5 rounded-lg border border-slate-200 transition-colors ${
+                                isReady
+                                  ? 'text-blue-600 hover:bg-blue-50 hover:border-blue-300 cursor-pointer'
+                                  : 'text-slate-300 cursor-not-allowed border-transparent'
+                              }`}
+                            >
+                              <Download className="w-3.5 h-3.5" />
+                            </button>
+
                             <button
                               disabled={!isReady}
                               onClick={() =>

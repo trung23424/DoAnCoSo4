@@ -2,6 +2,7 @@ import React from 'react';
 import Sidebar from './components/Sidebar';
 import MeetingCard from './components/MeetingCard';
 import useDashboardController from '../controllers/useDashboardController';
+import { exportMeetingToPDF, exportMeetingToWord } from '../services/exportService';
 import {
   Sparkles,
   Search,
@@ -264,6 +265,8 @@ export default function DashboardView({
                     meeting={meeting}
                     onViewSummary={onViewSummary}
                     onDelete={handleDeleteMeeting}
+                    onExportPDF={exportMeetingToPDF}
+                    onExportWord={exportMeetingToWord}
                   />
                 ))}
               </div>

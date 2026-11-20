@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import meetingDetailsMock from '../models/meetingDetailsMock.json';
 import { getMeetingDetailsFromFirestore } from '../services/meetingsService';
+import { exportMeetingToWord, exportMeetingToPDF } from '../services/exportService';
 
 export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', audioResult = null) {
   // Lấy dữ liệu file âm thanh thật (kể cả khi vừa ghi xong hoặc lưu tạm trong phiên)
@@ -310,13 +311,29 @@ export default function useMeetingDetailsController(meetingId = 'asm-8f2k1q', au
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // Xuất file PDF / Word mô phỏng
+  // Xuất file PDF & Word chuẩn thể thức văn bản hành chính Việt Nam (VKU)
   const handleExportPDF = () => {
-    alert(`Đang xuất biên bản cuộc họp "${meetingData?.title}" ra file PDF...`);
+    if (!meetingData) return;
+    const fullData = {
+      ...meetingData,
+      aiSummary: {
+        ...meetingData.aiSummary,
+        actionItems: actionItems || meetingData.aiSummary?.actionItems || [],
+      },
+    };
+    exportMeetingToPDF(fullData);
   };
 
   const handleExportWord = () => {
-    alert(`Đang xuất biên bản cuộc họp "${meetingData?.title}" ra file Word (.docx)...`);
+    if (!meetingData) return;
+    const fullData = {
+      ...meetingData,
+      aiSummary: {
+        ...meetingData.aiSummary,
+        actionItems: actionItems || meetingData.aiSummary?.actionItems || [],
+      },
+    };
+    exportMeetingToWord(fullData);
   };
 
   return {
